@@ -102,6 +102,22 @@ int main(int argc, char argv[]) {
 			return EXIT_FAILURE;
 		}
 
+		//escuchar - jugador1 envia el jugador a conectarse
+		//actualizar estado
+		//enviar mensaje a jugador 2
+		/*jugar() {
+			envia mensaje a jugaor 1 para que juegue
+			recibe el respuesta
+			comunica a jugador2
+			jugador 2 devuelve el resultado
+			comunica a jugador1
+			(semaforo)
+			envia mensaje a jugador 2 para que juegue
+
+			jugador informa que perdio
+			servidor actualiza estado y VECTOR DE PARTIDAS
+	    }
+
 		/*---Echo back anything sent---*/
 		//send(clientfd, buffer, recv(clientfd, buffer, MAXBUF, 0), 0);
 
