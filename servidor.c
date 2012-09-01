@@ -1,15 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <resolv.h>
-#include <arpa/inet.h>
-#include <errno.h>
-#include <stdbool.h>
-#include <string.h>
-
-#define MAXBUF		1024
-#define MAXJUG		200
-#define PUERTO		9999 // TODO: Ver de donde sale el puerto
+#include <include.h>
 
 // Estructura para el jugador
 struct Jugador {
@@ -101,6 +90,22 @@ int main(int argc, char argv[]) {
 			perror("Error al enviar lista de jugadores");
 			return EXIT_FAILURE;
 		}
+
+		//escuchar - jugador1 envia el jugador a conectarse
+		//actualizar estado
+		//enviar mensaje a jugador 2
+		/*jugar() {
+			envia mensaje a jugaor 1 para que juegue
+			recibe el respuesta
+			comunica a jugador2
+			jugador 2 devuelve el resultado
+			comunica a jugador1
+			(semaforo)
+			envia mensaje a jugador 2 para que juegue
+
+			jugador informa que perdio
+			servidor actualiza estado y VECTOR DE PARTIDAS
+	    }
 
 		/*---Echo back anything sent---*/
 		//send(clientfd, buffer, recv(clientfd, buffer, MAXBUF, 0), 0);
