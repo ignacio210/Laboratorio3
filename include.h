@@ -1,3 +1,14 @@
+/*
+ * include.h
+ *
+ *  Created on: Sep 1, 2012
+ *      Author: santi
+ */
+
+#ifndef INCLUDE_H_
+#define INCLUDE_H_
+
+
 /*LIBRERIAS */
 
 /*Resultados Posibles*/
