@@ -17,12 +17,10 @@
 #define VALUE 48
 
 /*MODIFICAR PARA TOMAR LA IP DE ARCHIVO DE CONFIGURACION*/
-
 #define PORT_TIME       13
 #define MY_PORT        9999
 #define SERVER_ADDR     "127.0.0.1"     /* localhost */
 #define MAXBUF          1024
-
 
 #include <arpa/inet.h>
 #include <assert.h>
@@ -47,7 +45,3 @@
 
 #include "estructuras.h"
 #include "cargarArchivo.h"
-
-
-
-

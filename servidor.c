@@ -3,7 +3,7 @@
 // Estructura para el jugador
 struct Jugador {
 	int clientfd; // File descriptor asociado al cliente
-	bool disponible;
+	int disponible;
 	char * nombre;
 	char * ip;
 };
@@ -75,6 +75,7 @@ int main(int argc, char argv[]) {
 		// Muestro informacion del cliente conectado
 		printf("%s:%d connectectado\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
+		//HAY QUE DISPARAR UNL THREAD PARA ATENDER AL JUGADOR
 		if(inicializarJugador(clientfd, client_addr, jugadores, jugadorCount) == -1) {
 			perror("inicializarJugador");
 			return EXIT_FAILURE;
@@ -137,7 +138,7 @@ int inicializarJugador(int fd, struct sockaddr_in client_addr, struct Jugador ju
 	strcpy(nuevoJugador.nombre, buffer);
 
 	nuevoJugador.clientfd = fd;
-	nuevoJugador.disponible = true;
+	nuevoJugador.disponible = 1;
 	nuevoJugador.ip = inet_ntoa(client_addr.sin_addr);
 
 	jugadores[count] = nuevoJugador;
