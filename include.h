@@ -8,7 +8,6 @@
 #ifndef INCLUDE_H_
 #define INCLUDE_H_
 
-
 /*LIBRERIAS */
 
 /*Resultados Posibles*/
@@ -21,7 +20,6 @@
 #define MAXBUF		1024
 #define MAXJUG		200
 #define PUERTO		9999 // TODO: Ver de donde sale el puerto
-
 /*DRAW MATRIX CONST*/
 #define NUMBER_X 10
 #define NUMBER_Y 10
@@ -32,6 +30,9 @@
 #define MY_PORT        9999
 #define SERVER_ADDR     "127.0.0.1"     /* localhost */
 #define MAXBUF          1024
+
+#include "estructuras.h"
+#include "cargarArchivo.h"
 
 #include <arpa/inet.h>
 #include <assert.h>
@@ -48,11 +49,11 @@
 #include <unistd.h>
 #include <sys/shm.h>
 #include <sys/socket.h>
+#include <stddef.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <pthread.h>
 
-#include "estructuras.h"
-#include "cargarArchivo.h"
+#endif /* INCLUDE_H_ */

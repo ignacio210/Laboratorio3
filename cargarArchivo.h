@@ -5,13 +5,16 @@
  *  Created on: Sep 1, 2012
  *      Author: santi
  */
-#include "include.h"
+/*#include "include.h"
 
 #ifndef CARGARARCHIVO_H_
 #define CARGARARCHIVO_H_
 
+/*#ifndef NULL
+#define NULL   ((void *) 0)
+#endif*/
 // Funciones para leer los archivos de configuracion
-
+/*
 int LeerArchConfJugador(const char *arch, Jugador *cfg);
 int CargaDatosJugador(char *fields, char *valor, Jugador* cfg);
 
@@ -49,7 +52,7 @@ int LeerArchConfJugador(const char *arch, Jugador *cfg) {
  IP_SERVIDOR
  PUERTO_SERVIDOR
  PUERTO_JUGADOR
- */
+
 #include "include.h"
 
 int CargaDatosJugador(char *fields, char *valor, Jugador* cfg) {
@@ -87,5 +90,5 @@ int CargaDatosJugador(char *fields, char *valor, Jugador* cfg) {
 
 	return 0;
 }
-
+/*
 #endif /* CARGARARCHIVO_H_ */

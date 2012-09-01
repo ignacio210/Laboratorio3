@@ -1,27 +1,4 @@
-#include <include.h>
-
-// Estructura para el jugador
-struct Jugador {
-	int clientfd; // File descriptor asociado al cliente
-	int disponible;
-	char * nombre;
-	char * ip;
-};
-
-// Tipos de mensajes que pueden ser intercambiados entre el servidor y los clientes.
-typedef enum {
-		Registra_Jugador,
-		Juega,
-		Elige_Jugador,
-		Lista_Jugadores
-		} TIPO_MENSAJE;
-
-// Estructura para el mensaje
-struct Mensaje {
-	struct Jugador jugador;
-	TIPO_MENSAJE tipo;
-	char * contenido;
-};
+#include "include.h"
 
 int main(int argc, char argv[]) {
 
@@ -29,7 +6,7 @@ int main(int argc, char argv[]) {
 	struct sockaddr_in self;
 
 	// TODO: El verctor de jugadores tiene que asignarse dimanicamente y no ser estatico
-	struct Jugador jugadores[MAXJUG];
+	Jugador jugadores[MAXJUG];
 	char buffer[MAXBUF];
 
 	bzero(buffer, MAXBUF);
@@ -120,11 +97,11 @@ int main(int argc, char argv[]) {
 	return EXIT_SUCCESS;
 }
 
-int inicializarJugador(int fd, struct sockaddr_in client_addr, struct Jugador jugadores[], int count) {
+int inicializarJugador(int fd, struct sockaddr_in client_addr, Jugador jugadores[], int count) {
 
 	char buffer[MAXBUF];
 	int r;
-	struct Jugador nuevoJugador;
+	Jugador nuevoJugador;
 
 	// Recibo el nombre del jugador
 	r = recv(fd, buffer, sizeof(buffer), 0);
@@ -160,7 +137,7 @@ int enviarListaJugadoresDisponibles(int fd, char buffer[]) {
 	return 0;
 }
 
-int armarListaJugadoresDisponibles(struct Jugador jugadores[], char * buffer, int count) {
+int armarListaJugadoresDisponibles(Jugador jugadores[], char * buffer, int count) {
 
 	int i;
 
