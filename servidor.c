@@ -4,45 +4,23 @@
 #include <resolv.h>
 #include <arpa/inet.h>
 #include <errno.h>
-#include <stdbool.h>
 #include <string.h>
+#include "estructuras.h"
 
 #define MAXBUF		1024
-#define MAXJUG		200
-#define PUERTO		9999 // TODO: Ver de donde sale el puerto
+#define MAXJUG		16
+#define PUERTO		9999 // TODO: Sacar el puerto de un archivo de configuracion
 
-// Estructura para el jugador
-struct Jugador {
-	int clientfd; // File descriptor asociado al cliente
-	bool disponible;
-	char * nombre;
-	char * ip;
-};
-
-// Tipos de mensajes que pueden ser intercambiados entre el servidor y los clientes.
-typedef enum {
-		Registra_Jugador,
-		Juega,
-		Elige_Jugador,
-		Lista_Jugadores
-		} TIPO_MENSAJE;
-
-// Estructura para el mensaje
-struct Mensaje {
-	struct Jugador jugador;
-	TIPO_MENSAJE tipo;
-	char * contenido;
-};
+int jugadorCount;
+struct Jugador jugadores[MAXJUG];
+char buffer[MAXBUF];
 
 int main(int argc, char argv[]) {
 
-	int sockfd, jugadorCount;
+	int sockfd;
 	struct sockaddr_in self;
 
-	// TODO: El verctor de jugadores tiene que asignarse dimanicamente y no ser estatico
-	struct Jugador jugadores[MAXJUG];
-	char buffer[MAXBUF];
-
+	// Se asume que el numero de jugadores maximo es chico, sino deberia gestionarse dinamicamente el tamano del array
 	bzero(buffer, MAXBUF);
 	jugadorCount = 0;
 
@@ -84,28 +62,27 @@ int main(int argc, char argv[]) {
 		clientfd = accept(sockfd, (struct sockaddr*)&client_addr, &addrlen);
 
 		// Muestro informacion del cliente conectado
-		printf("%s:%d connectectado\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+		printf("%s:%d conectectado\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
-		if(inicializarJugador(clientfd, client_addr, jugadores, jugadorCount) == -1) {
-			perror("inicializarJugador");
+		// Aca arrancaria el thread
+		if(inicializarJugador(clientfd, client_addr) == -1) {
+			perror("Error al inicializar Jugador");
 			return EXIT_FAILURE;
 		}
 
 		jugadorCount++;
 
-		armarListaJugadoresDisponibles(jugadores, buffer, jugadorCount);
+		armarListaJugadoresDisponibles();
 
+		// Imprimo la lista de jugadores para info de debug
 		printf("%s", buffer);
 
-		if(enviarListaJugadoresDisponibles(clientfd, buffer) == -1) {
+		if(enviarListaJugadoresDisponibles(clientfd) == -1) {
 			perror("Error al enviar lista de jugadores");
 			return EXIT_FAILURE;
 		}
 
-		/*---Echo back anything sent---*/
-		//send(clientfd, buffer, recv(clientfd, buffer, MAXBUF, 0), 0);
-
-		/*---Close data connection---*/
+		// TODO: ver cuando se cierra el clientfd
 		//close(clientfd);
 	}
 
@@ -114,37 +91,51 @@ int main(int argc, char argv[]) {
 	return EXIT_SUCCESS;
 }
 
-int inicializarJugador(int fd, struct sockaddr_in client_addr, struct Jugador jugadores[], int count) {
+int inicializarJugador(int fd, struct sockaddr_in client_addr) {
 
-	char buffer[MAXBUF];
 	int r;
 	struct Jugador nuevoJugador;
+	struct Mensaje * mensaje;
+
+	// Validacion maximo jugadores
+	if(jugadorCount >= MAXJUG)
+		return -1;
+
+	bzero(buffer, MAXBUF);
 
 	// Recibo el nombre del jugador
-	r = recv(fd, buffer, sizeof(buffer), 0);
+	r = recv(fd, buffer, sizeof(struct Mensaje), 0);
 
 	if(r == -1) {
-		perror("recv");
+		perror("Error al recibir el nombre del jugador");
 		return -1;
 	}
 
-	nuevoJugador.nombre = malloc(strlen(buffer));
-	strcpy(nuevoJugador.nombre, buffer);
+	mensaje = buffer;
+
+	if(mensaje->tipo != Registra_Nombre)
+		return -1;
+
+	strcpy(nuevoJugador.nombre, mensaje->contenido);
 
 	nuevoJugador.clientfd = fd;
-	nuevoJugador.disponible = true;
-	nuevoJugador.ip = inet_ntoa(client_addr.sin_addr);
+	nuevoJugador.estado = Disponible;
+	strcpy(nuevoJugador.ip, inet_ntoa(client_addr.sin_addr));
 
-	jugadores[count] = nuevoJugador;
+	jugadores[jugadorCount] = nuevoJugador;
 
-	return EXIT_SUCCESS;
+	return 0;
 }
 
-int enviarListaJugadoresDisponibles(int fd, char buffer[]) {
+int enviarListaJugadoresDisponibles(int fd) {
 
 	int bytesSent;
+	struct Mensaje mensaje;
 
-	bytesSent = send(fd, buffer, strlen(buffer), 0);
+	mensaje.tipo = Lista_Jugadores;
+	strcpy(mensaje.contenido, buffer);
+
+	bytesSent = send(fd, &mensaje, sizeof(struct Mensaje), 0);
 
 	if(bytesSent == -1) {
 		perror("Error al enviar lista de jugadores");
@@ -154,17 +145,21 @@ int enviarListaJugadoresDisponibles(int fd, char buffer[]) {
 	return 0;
 }
 
-int armarListaJugadoresDisponibles(struct Jugador jugadores[], char * buffer, int count) {
+int armarListaJugadoresDisponibles() {
 
 	int i;
 
+	bzero(buffer, MAXBUF);
+
 	strcat(buffer, "Lista de jugadores disponibles:\n\n");
 
-	for(i=0; i<count; i++) {
+	for(i=0; i<jugadorCount; i++) {
 
-		if(jugadores[i].disponible) {
+		if(jugadores[i].estado == Disponible) {
 
-			strcat(buffer, "1"); // Todo, ver como castear int a string
+			char num[5];
+			sprintf(num, "%d", i+1);
+			strcat(buffer, num); // Todo, ver como castear int a string
 			strcat(buffer, ". ");
 			strcat(buffer, jugadores[i].nombre);
 			strcat(buffer, "(");

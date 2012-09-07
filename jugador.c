@@ -5,6 +5,7 @@
 #include <resolv.h>
 #include <errno.h>
 #include <string.h>
+#include "estructuras.h"
 
 #define PORT_TIME       13
 #define MY_PORT        9999
@@ -16,6 +17,7 @@ int main(int argc, char * argv[])
 	int sockfd, s, r;
     struct sockaddr_in dest;
     char buffer[MAXBUF];
+    struct Mensaje mensaje;
 
     if(argc < 3) {
     	puts("Usage ./cliente [nombre] [pos1] ...");
@@ -47,21 +49,34 @@ int main(int argc, char * argv[])
 
     bzero(buffer, MAXBUF);
 
-    s = send(sockfd, argv[1], strlen(argv[1]), 0);
+    // Enviar nombre jugador
+
+    mensaje.tipo = Registra_Nombre;
+    strcpy(mensaje.contenido, argv[1]);
+
+    s = send(sockfd, &mensaje, sizeof(mensaje), 0);
 
     if(s == -1) {
-    	perror("Error en envio");
+    	perror("Error al enviar el nombre del jugador");
     	return EXIT_FAILURE;
     }
 
-    r = recv(sockfd, buffer, sizeof(buffer), 0);
+    // Recibo lista de jugadores
+    r = recv(sockfd, buffer, sizeof(struct Mensaje), 0);
+
+    struct Mensaje * mensajeLista;
 
     if(r == -1) {
         	perror("Error al recibir lista de jugadores");
         	return EXIT_FAILURE;
     }
 
-    printf("%s", buffer);
+    mensajeLista = buffer;
+
+    if(mensajeLista->tipo != Lista_Jugadores)
+    	return EXIT_FAILURE;
+
+    printf("%s", mensajeLista->contenido);
 
     close(sockfd);
     return EXIT_SUCCESS;
