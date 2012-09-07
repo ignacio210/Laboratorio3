@@ -6,8 +6,6 @@
 #include <errno.h>
 #include <string.h>
 
-/*MODIFICAR PARA TOMAR LA IP DE ARCHIVO DE CONFIGURACION*/
-
 #define PORT_TIME       13
 #define MY_PORT        9999
 #define SERVER_ADDR     "127.0.0.1"     /* localhost */
