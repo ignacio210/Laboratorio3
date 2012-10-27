@@ -1,4 +1,5 @@
 #ifndef ESTRUCTURAS_H_
+
 #define ESTRUCTURAS_H_
 
 #define NOMBRE_LEN 25 // Longitud maxima del nombre del jugador
