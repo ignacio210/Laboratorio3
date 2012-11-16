@@ -4,6 +4,8 @@
 #define NOMBRE_LEN 25 // Longitud maxima del nombre del jugador
 #define CONTENIDO_LEN 256 // Longitud maxima para el campo contenido de los mensajes
 
+#define MAXJUG 16
+
 // Tipos de mensajes que pueden ser intercambiados entre el servidor y los clientes.
 typedef enum {
 		Registra_Nombre,
@@ -24,15 +26,22 @@ struct Jugador {
 	ESTADO estado;
 	char nombre[NOMBRE_LEN];
 	char ip[15];
+	struct sockaddr_in client_addr;
 };
 
 // Estructura para el mensaje
 struct Mensaje {
+	TIPO_MENSAJE tipo;
 	struct Jugador jugadorOrigen;
 	struct Jugador jugadorDestino;
-	TIPO_MENSAJE tipo;
 	char contenido[CONTENIDO_LEN];
 };
 
+// Estructura para el mensaje
+struct MensajeNIPC {
+	TIPO_MENSAJE tipo;
+	int payload_length;
+	char payload[2048];
+};
 
 #endif /* ESTRUCTURAS_H_ */
