@@ -32,6 +32,7 @@ pthread_t ids[2];
 
 // Estructura jugador registrada en el server
 struct Jugador jugador;
+struct Partida partida;
 
 // Lista de jugadores disponibles (se va actualizando)
 struct Jugador jugadoresDisponibles[MAXJUG];
@@ -90,24 +91,46 @@ void liberar_recursos() {
 
 int leerJugada() {
 
+	char pos[2];
+	int s;
+
 	while (1) {
 		print_maps();
 		printf("enter value\n");
 		getchar();
 		system("clear");
+
+		// Enviar jugada
+		/*struct MensajeNIPC mensajeJugada;
+		mensajeJugada.tipo = Juega;
+		mensajeJugada.jugadorOrigen = partida.jugadorOrigen;
+		mensajeJugada.jugadorDestino = partida.jugadorDestino;
+		mensajeJugada.payload_length = sizeof(pos);
+		memcpy(mensajeJugada.payload, pos, sizeof(pos));
+
+		s = send(sockfd, &mensajeJugada, sizeof(struct MensajeNIPC), 0);
+
+		if (s == -1) {
+			perror("Error al enviar el mensaje.\n");
+			return EXIT_FAILURE;
+		}*/
 	}
 
 	return 0;
 }
 
 int escucharServidor() {
+
+	// Recibe jugadas que le reenvia el servidor
+
+
 	return 0;
 }
 
 int iniciarPartida(struct Partida partida) {
 
-	printf("Se inicia la partida entre %s y %s.\n", partida.jugador1.nombre,
-			partida.jugador2.nombre);
+	printf("Se inicia la partida entre %s y %s.\n", partida.jugadorOrigen.nombre,
+			partida.jugadorDestino.nombre);
 
 	matrix_init();
 
@@ -131,8 +154,8 @@ int iniciarPartida(struct Partida partida) {
 		return EXIT_FAILURE;
 	}
 
-	pthread_join(ids[0], NULL);
-	pthread_join(ids[1], NULL);
+	pthread_join(ids[0], NULL );
+	pthread_join(ids[1], NULL );
 
 	return 0;
 }
@@ -182,10 +205,8 @@ int elegirJugador() {
 		return -1;
 	}
 
-	struct Partida partida;
-
-	partida.jugador1 = jugador;
-	partida.jugador2 = jugadoresDisponibles[jugadorElegido - 1];
+	partida.jugadorOrigen = jugador;
+	partida.jugadorDestino = jugadoresDisponibles[jugadorElegido - 1];
 
 	iniciarPartida(partida);
 
@@ -337,10 +358,12 @@ int main(int argc, char * argv[]) {
 			return EXIT_FAILURE;
 		}
 
-		struct Partida partida;
+		partida.jugadorOrigen = jugador;
 
-		partida.jugador1 = mensajeConfirmacion->jugadorOrigen;
-		partida.jugador2 = mensajeConfirmacion->jugadorDestino;
+		if(strcmp(mensajeConfirmacion->jugadorOrigen.nombre, jugador.nombre) == 0)
+			partida.jugadorDestino = mensajeConfirmacion->jugadorOrigen;
+		else
+			partida.jugadorDestino = mensajeConfirmacion->jugadorOrigen;
 
 		iniciarPartida(partida);
 	}

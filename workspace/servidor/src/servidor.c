@@ -75,6 +75,27 @@ int eligeJugador(struct MensajeNIPC * mensajeJugador) {
 	}
 }
 
+int procesarJugada(struct MensajeNIPC * mensajeJugada) {
+
+	char pos[2];
+	int s;
+
+	memcpy(pos, mensajeJugada->payload, mensajeJugada->payload_length);
+
+	// Envio jugada al jugador destino
+
+	// Le cambio el tipo al mensaje y lo reenvio
+	mensajeJugada->tipo = Recibe_Ataque;
+
+	s = send(mensajeJugada->jugadorDestino.clientfd, &mensajeJugada,
+			sizeof(struct MensajeNIPC), 0);
+
+	if (s == -1) {
+		perror("Error al enviar el mensaje.\n");
+		return -1;
+	}
+}
+
 void * handler_jugador(void * args) {
 
 	int r;
@@ -126,6 +147,15 @@ void * handler_jugador(void * args) {
 				abort();
 			}
 			break;
+
+		case Juega:
+
+			if (procesarJugada(mensajeJugador) == -1) {
+				printf("Error al procesar la jugada.\n");
+				abort();
+			}
+			break;
+
 		}
 	}
 }
