@@ -9,7 +9,7 @@
 #include "estructuras.h"
 
 #define MAXBUF		2048
-#define PUERTO		9999 // TODO: Sacar el puerto de un archivo de configuracion
+#define PUERTO		9998 // TODO: Sacar el puerto de un archivo de configuracion
 int jugadorCount;
 struct Jugador jugadores[MAXJUG];
 
@@ -21,7 +21,18 @@ int inicializarJugador(struct Jugador nuevoJugador);
 
 struct MensajeNIPC armarListaJugadoresDisponibles();
 
+void eligeJugador(struct MensajeNIPC * mensajeJugador) {
+
+	int numeroJugador;
+
+	memcpy(&numeroJugador, mensajeJugador->payload, mensajeJugador->payload_length);
+
+	printf("Se ha elegido al jugador %d, %s.\n", numeroJugador, jugadores[numeroJugador - 1].nombre);
+}
+
 void * handler_jugador(void * args) {
+
+	int r;
 
 	struct Jugador jugador = (*(struct Jugador *)args);
 
@@ -49,7 +60,37 @@ void * handler_jugador(void * args) {
 		printf("Error al enviar lista de jugadores.\n");
 		abort();
 	}
+
+	char buffer[MAXBUF];
+	TIPO_MENSAJE tipo;
+
+	while(1) {
+
+		r = recv(jugador.clientfd, buffer, sizeof(struct MensajeNIPC), 0);
+
+		if(r == -1) {
+			perror("Error al recibir el mensaje.\n");
+			abort();
+		}
+
+		struct MensajeNIPC * mensajeJugador;
+
+		mensajeJugador = (struct MensajeNIPC *)buffer;
+
+		switch(mensajeJugador->tipo) {
+
+			case Elige_Jugador:
+
+				eligeJugador(mensajeJugador);
+
+				break;
+		}
+	}
 }
+
+
+
+
 
 int main(int argc, char argv[]) {
 
@@ -185,8 +226,6 @@ struct MensajeNIPC armarListaJugadoresDisponibles() {
 
 	bzero(buffer, MAXBUF);
 
-	//strcat(buffer, "Lista de jugadores disponibles:\n\n");
-
 	for (i = 0; i < jugadorCount; i++) {
 
 		if (jugadores[i].estado == Disponible) {
@@ -194,15 +233,6 @@ struct MensajeNIPC armarListaJugadoresDisponibles() {
 			jugadores_disponibles[jugadores_disp_count] = jugadores[i];
 
 			jugadores_disp_count++;
-
-			/*char num[5];
-			sprintf(num, "%d", i + 1);
-			strcat(buffer, num);
-			strcat(buffer, ". ");
-			strcat(buffer, jugadores[i].nombre);
-			strcat(buffer, "(");
-			strcat(buffer, jugadores[i].ip);
-			strcat(buffer, ")\n");*/
 		}
 	}
 

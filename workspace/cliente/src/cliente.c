@@ -8,7 +8,7 @@
 #include "estructuras.h"
 
 #define PORT_TIME       13
-#define MY_PORT        9999
+#define MY_PORT        9998
 #define SERVER_ADDR     "127.0.0.1"     /* localhost */
 #define MAXBUF          2048
 
@@ -84,36 +84,37 @@ int main(int argc, char * argv[]) {
 
 	while (jugadoresDisponibles[i].clientfd != 0) {
 
-		 char num[5];
-		 sprintf(num, "%d", i + 1);
-		 strcat(messageBuffer, num);
-		 strcat(messageBuffer, ". ");
-		 strcat(messageBuffer, jugadoresDisponibles[i].nombre);
-		 strcat(messageBuffer, "(");
-		 strcat(messageBuffer, jugadoresDisponibles[i].ip);
-		 strcat(messageBuffer, ")\n");
+		char num[5];
+		sprintf(num, "%d", i + 1);
+		strcat(messageBuffer, num);
+		strcat(messageBuffer, ". ");
+		strcat(messageBuffer, jugadoresDisponibles[i].nombre);
+		strcat(messageBuffer, "(");
+		strcat(messageBuffer, jugadoresDisponibles[i].ip);
+		strcat(messageBuffer, ")\n");
 
-		 i++;
+		i++;
 	}
 
 	printf("%s\n", messageBuffer);
 
-		/*r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
+	int jugadorElegido;
 
-		 struct Mensaje * mensajeLista;
+	scanf("Elegir jugador: %d\n", &jugadorElegido);
 
-		 if(r == -1) {
-		 perror("Error al recibir lista de jugadores");
-		 return EXIT_FAILURE;
-		 }
+	struct MensajeNIPC mensajeJugador;
 
-		 mensajeLista = buffer;
+	mensajeJugador.tipo = Elige_Jugador;
+	mensajeJugador.payload_length = sizeof(int);
+	memcpy(mensajeJugador.payload, &jugadorElegido, sizeof(jugadorElegido));
 
-		 if(mensajeLista->tipo != Lista_Jugadores)
-		 return EXIT_FAILURE;
+	s = send(sockfd, &mensajeJugador, sizeof(struct MensajeNIPC), 0);
 
-		 printf("%s", mensajeLista->contenido);*/
-
-		close(sockfd);
-		return EXIT_SUCCESS;
+	if (s == -1) {
+		perror("Error al enviar el jugador elegido.\n");
+		return EXIT_FAILURE;
 	}
+
+	close(sockfd);
+	return EXIT_SUCCESS;
+}
