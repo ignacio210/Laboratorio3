@@ -5,6 +5,7 @@
 #include <resolv.h>
 #include <errno.h>
 #include <string.h>
+#include <pthread.h> // gcc miThread.c -o miThread -l pthread
 #include "estructuras.h"
 
 #define PORT_TIME       13
@@ -24,6 +25,10 @@ int i, j, cantidad_barcos;
 char ** parametros;
 
 int sockfd;
+
+// El cliente va a usar 2 threads, uno para leer lo que se escribe por pantalla y
+// otro que escuche lo que le manda el server
+pthread_t ids[2];
 
 // Estructura jugador registrada en el server
 struct Jugador jugador;
@@ -83,6 +88,22 @@ void liberar_recursos() {
 	close(sockfd);
 }
 
+int leerJugada() {
+
+	while (1) {
+		print_maps();
+		printf("enter value\n");
+		getchar();
+		system("clear");
+	}
+
+	return 0;
+}
+
+int escucharServidor() {
+	return 0;
+}
+
 int iniciarPartida(struct Partida partida) {
 
 	printf("Se inicia la partida entre %s y %s.\n", partida.jugador1.nombre,
@@ -94,16 +115,24 @@ int iniciarPartida(struct Partida partida) {
 		my_matrix[parametros[i][0] - VALUE][parametros[i][1] - VALUE] = 'b';
 	}
 
-	while (1) {
-		print_maps();
-		printf("enter value\n");
-		getchar();
-		system("clear");
+	int result;
+
+	result = pthread_create(&ids[0], NULL, leerJugada, NULL );
+
+	if (result != 0) {
+		perror("Error en la creacion del thread\n");
+		return EXIT_FAILURE;
 	}
 
-	while (1) {
-		sleep(1);
+	result = pthread_create(&ids[1], NULL, escucharServidor, NULL );
+
+	if (result != 0) {
+		perror("Error en la creacion del thread\n");
+		return EXIT_FAILURE;
 	}
+
+	pthread_join(ids[0], NULL);
+	pthread_join(ids[1], NULL);
 
 	return 0;
 }
