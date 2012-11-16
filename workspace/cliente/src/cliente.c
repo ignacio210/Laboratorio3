@@ -91,22 +91,23 @@ void liberar_recursos() {
 
 int leerJugada() {
 
-	char pos[2];
+	char pos[10];
 	int s;
 
 	while (1) {
 		print_maps();
 		printf("enter value\n");
-		getchar();
+		scanf("%s", pos);
 		system("clear");
 
 		// Enviar jugada
+
 		/*struct MensajeNIPC mensajeJugada;
 		mensajeJugada.tipo = Juega;
 		mensajeJugada.jugadorOrigen = partida.jugadorOrigen;
 		mensajeJugada.jugadorDestino = partida.jugadorDestino;
-		mensajeJugada.payload_length = sizeof(pos);
-		memcpy(mensajeJugada.payload, pos, sizeof(pos));
+		mensajeJugada.payload_length = strlen(pos);
+		memcpy(mensajeJugada.payload, pos, strlen(pos));
 
 		s = send(sockfd, &mensajeJugada, sizeof(struct MensajeNIPC), 0);
 
@@ -121,16 +122,38 @@ int leerJugada() {
 
 int escucharServidor() {
 
-	// Recibe jugadas que le reenvia el servidor
+	int r;
+	char buffer[MAXBUF];
 
+	bzero(buffer, MAXBUF);
+
+	// Recibe jugadas que le reenvia el servidor
+	r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
+
+	if (r == -1) {
+		perror("Error al recibir el mensaje.\n");
+		return EXIT_FAILURE;
+	}
+
+	struct MensajeNIPC * mensaje;
+
+	mensaje = (struct MensajeNIPC *) buffer;
+
+	if(mensaje->tipo == Recibe_Ataque) {
+		char pos[10];
+
+		memcpy(&pos, mensaje->payload, mensaje->payload_length);
+
+		printf("Recibido ataque en %s\n");
+	}
 
 	return 0;
 }
 
 int iniciarPartida(struct Partida partida) {
 
-	printf("Se inicia la partida entre %s y %s.\n", partida.jugadorOrigen.nombre,
-			partida.jugadorDestino.nombre);
+	printf("Se inicia la partida entre %s y %s.\n",
+			partida.jugadorOrigen.nombre, partida.jugadorDestino.nombre);
 
 	matrix_init();
 
@@ -360,7 +383,8 @@ int main(int argc, char * argv[]) {
 
 		partida.jugadorOrigen = jugador;
 
-		if(strcmp(mensajeConfirmacion->jugadorOrigen.nombre, jugador.nombre) == 0)
+		if (strcmp(mensajeConfirmacion->jugadorOrigen.nombre, jugador.nombre)
+				== 0)
 			partida.jugadorDestino = mensajeConfirmacion->jugadorOrigen;
 		else
 			partida.jugadorDestino = mensajeConfirmacion->jugadorOrigen;
