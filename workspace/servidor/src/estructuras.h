@@ -11,7 +11,9 @@ typedef enum {
 		Registra_Nombre,
 		Juega,
 		Elige_Jugador,
-		Lista_Jugadores
+		Lista_Jugadores,
+		Jugador_Registrado,
+		Confirma_partida
 		} TIPO_MENSAJE;
 
 // Estados del jugador
@@ -42,6 +44,14 @@ struct MensajeNIPC {
 	TIPO_MENSAJE tipo;
 	int payload_length;
 	char payload[2048];
+	struct Jugador jugadorOrigen;
+	struct Jugador jugadorDestino;
+};
+
+// Estructura que representa la partida
+struct Partida {
+	struct Jugador jugador1;
+	struct Jugador jugador2;
 };
 
 #endif /* ESTRUCTURAS_H_ */

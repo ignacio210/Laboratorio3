@@ -8,12 +8,90 @@
 #include "estructuras.h"
 
 #define PORT_TIME       13
-#define MY_PORT        9998
+#define MY_PORT        9997
 #define SERVER_ADDR     "127.0.0.1"     /* localhost */
 #define MAXBUF          2048
 
+int sockfd;
+
+// Estructura jugador registrada en el server
+struct Jugador jugador;
+
+// Lista de jugadores disponibles (se va actualizando)
+struct Jugador jugadoresDisponibles[MAXJUG];
+
+void liberar_recursos() {
+	close(sockfd);
+}
+
+int iniciarPartida(struct Partida partida) {
+
+	printf("Se inicia la partida entre %s y %s.\n", partida.jugador1.nombre, partida.jugador2.nombre);
+
+	while(1) {
+		sleep(1);
+	}
+
+	return 0;
+}
+
+int elegirJugador() {
+
+	int jugadorElegido, s, r;
+	char buffer[MAXBUF];
+	struct MensajeNIPC * mensajeConfirmacion;
+
+	printf("Elegir jugador: ");
+	scanf("%d", &jugadorElegido);
+
+	printf("\n\nJugador elegido: %d - %s.\n", jugadorElegido,
+			jugadoresDisponibles[jugadorElegido - 1].nombre);
+
+	// Envio la informacion del jugador elegido al server
+	struct MensajeNIPC mensajeJugador;
+
+	mensajeJugador.tipo = Elige_Jugador;
+	mensajeJugador.jugadorOrigen = jugador;
+	mensajeJugador.jugadorDestino = jugadoresDisponibles[jugadorElegido - 1];
+
+	mensajeJugador.payload_length = sizeof(int);
+	memcpy(mensajeJugador.payload, &jugadorElegido, sizeof(jugadorElegido));
+
+	s = send(sockfd, &mensajeJugador, sizeof(struct MensajeNIPC), 0);
+
+	if (s == -1) {
+		return -1;
+	}
+
+	bzero(buffer, MAXBUF);
+
+	// Espero a recibir del server una confirmacion de que la partida va a iniciar.
+	r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
+
+	if (r == -1) {
+		perror("Error al recibir el mensaje.\n");
+		return -1;
+	}
+
+	mensajeConfirmacion = (struct MensajeNIPC *) buffer;
+
+	if (mensajeConfirmacion->tipo != Confirma_partida) {
+		printf("El tipo de mensaje recibido no es valido.\n");
+		return -1;
+	}
+
+	struct Partida partida;
+
+	partida.jugador1 = jugador;
+	partida.jugador2 = jugadoresDisponibles[jugadorElegido - 1];
+
+	iniciarPartida(partida);
+
+	return 0;
+}
+
 int main(int argc, char * argv[]) {
-	int sockfd, s, r;
+	int s, r;
 	struct sockaddr_in dest;
 	char buffer[MAXBUF];
 	struct Mensaje mensaje;
@@ -46,7 +124,6 @@ int main(int argc, char * argv[]) {
 	bzero(buffer, MAXBUF);
 
 	// Enviar nombre jugador
-
 	mensaje.tipo = Registra_Nombre;
 	strcpy(mensaje.contenido, argv[1]);
 
@@ -59,62 +136,90 @@ int main(int argc, char * argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	// Recibo lista de jugadores
-
+	// Recibo la estructura del jugador registrado.
 	r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
 
-	TIPO_MENSAJE tipo;
+	memcpy(&jugador, buffer + sizeof(TIPO_MENSAJE) + sizeof(int),
+			sizeof(struct Jugador));
 
-	memcpy(&tipo, buffer, sizeof(TIPO_MENSAJE));
+	printf("Se ha registrado en el servidor como el jugador %s.\n",
+			jugador.nombre);
 
-	int payloadLength;
+	// Dar la opcion de elegir un jugador de la lista o esperar a que alguien lo elija
+	printf("Menu:\n\n");
 
-	memcpy(&payloadLength, buffer + sizeof(TIPO_MENSAJE), sizeof(int));
+	printf("/t1. Elegir un contrincante.\n");
+	printf("/t2. Esperar a ser elegido.\n");
 
-	struct Jugador jugadoresDisponibles[MAXJUG];
+	int opcion;
 
-	memcpy(jugadoresDisponibles, buffer + sizeof(TIPO_MENSAJE) + sizeof(int),
-			payloadLength);
+	printf("Ingrese opcion:");
+	scanf("%d", &opcion);
 
-	int i = 0;
+	if (opcion == 1) {
 
-	char messageBuffer[MAXBUF];
+		// Recibo lista de jugadores
+		r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
 
-	strcat(messageBuffer, "Lista de jugadores disponibles:\n\n");
+		TIPO_MENSAJE tipo;
 
-	while (jugadoresDisponibles[i].clientfd != 0) {
+		memcpy(&tipo, buffer, sizeof(TIPO_MENSAJE));
 
-		char num[5];
-		sprintf(num, "%d", i + 1);
-		strcat(messageBuffer, num);
-		strcat(messageBuffer, ". ");
-		strcat(messageBuffer, jugadoresDisponibles[i].nombre);
-		strcat(messageBuffer, "(");
-		strcat(messageBuffer, jugadoresDisponibles[i].ip);
-		strcat(messageBuffer, ")\n");
+		int payloadLength;
 
-		i++;
+		memcpy(&payloadLength, buffer + sizeof(TIPO_MENSAJE), sizeof(int));
+
+		memcpy(jugadoresDisponibles,
+				buffer + sizeof(TIPO_MENSAJE) + sizeof(int), payloadLength);
+
+		int i = 0;
+
+		char messageBuffer[MAXBUF];
+
+		strcat(messageBuffer, "Lista de jugadores disponibles:\n\n");
+
+		while (jugadoresDisponibles[i].clientfd != 0) {
+
+			char num[5];
+			sprintf(num, "%d", i + 1);
+			strcat(messageBuffer, num);
+			strcat(messageBuffer, ". ");
+			strcat(messageBuffer, jugadoresDisponibles[i].nombre);
+			strcat(messageBuffer, "(");
+			strcat(messageBuffer, jugadoresDisponibles[i].ip);
+			strcat(messageBuffer, ")\n");
+
+			i++;
+		}
+
+		printf("%s\n", messageBuffer);
+
+		if (elegirJugador() == -1) {
+			perror("Error al elegir jugador.\n");
+			liberar_recursos();
+			return EXIT_FAILURE;
+		}
+	} else {
+
+		int r;
+		struct MensajeNIPC * mensajeConfirmacion;
+
+		printf("Esperando que se inicie una partida.\n");
+
+		r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
+
+		if (r == -1) {
+			perror("Error al recibir el mensaje.\n");
+			return EXIT_FAILURE;
+		}
+
+		mensajeConfirmacion = (struct MensajeNIPC *) buffer;
+
+		if (mensajeConfirmacion->tipo != Confirma_partida) {
+			printf("El tipo de mensaje recibido no es valido.\n");
+			return EXIT_FAILURE;
+		}
 	}
 
-	printf("%s\n", messageBuffer);
-
-	int jugadorElegido;
-
-	scanf("Elegir jugador: %d\n", &jugadorElegido);
-
-	struct MensajeNIPC mensajeJugador;
-
-	mensajeJugador.tipo = Elige_Jugador;
-	mensajeJugador.payload_length = sizeof(int);
-	memcpy(mensajeJugador.payload, &jugadorElegido, sizeof(jugadorElegido));
-
-	s = send(sockfd, &mensajeJugador, sizeof(struct MensajeNIPC), 0);
-
-	if (s == -1) {
-		perror("Error al enviar el jugador elegido.\n");
-		return EXIT_FAILURE;
-	}
-
-	close(sockfd);
 	return EXIT_SUCCESS;
 }
