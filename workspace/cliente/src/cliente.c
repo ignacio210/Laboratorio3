@@ -12,6 +12,17 @@
 #define SERVER_ADDR     "127.0.0.1"     /* localhost */
 #define MAXBUF          2048
 
+// Defines y variables para funcion grafica
+#define NUMBER_X 10
+#define NUMBER_Y 10
+#define VALUE 48
+
+char my_matrix[NUMBER_X][NUMBER_Y];
+char remote_matrix[NUMBER_X][NUMBER_Y];
+int i, j, cantidad_barcos;
+
+char ** parametros;
+
 int sockfd;
 
 // Estructura jugador registrada en el server
@@ -20,15 +31,77 @@ struct Jugador jugador;
 // Lista de jugadores disponibles (se va actualizando)
 struct Jugador jugadoresDisponibles[MAXJUG];
 
+void matrix_init() {
+	for (i = 0; i < NUMBER_X; i++) {
+		for (j = 0; j < NUMBER_Y; j++) {
+			my_matrix[i][j] = 'a';
+			remote_matrix[i][j] = 'a';
+		}
+	}
+}
+
+void print_map_line(char value[]) {
+	printf("| ");
+	for (j = 0; j < NUMBER_Y; j++) {
+		if (value[j] == 'a') {
+			printf(".");
+		} else {
+			printf("x");
+		}
+		printf(" ");
+	}
+	printf("|");
+}
+
+void print_maps() {
+	printf("\t\t My map \t\t\t\t\t Remote Map\t\n");
+	print_header();
+	printf("\t");
+	print_header();
+	printf("\n");
+	for (i = 0; i < NUMBER_X; i++) {
+		print_map_line(my_matrix[i]);
+		printf("\t");
+		print_map_line(remote_matrix[i]);
+		printf("\n");
+	}
+	print_header();
+	printf("\t");
+	print_header();
+	printf("\n");
+}
+
+void print_header() {
+	printf("+");
+	for (i = 0; i < 43; i++) {
+		printf("-");
+	}
+	printf("+");
+}
+
 void liberar_recursos() {
 	close(sockfd);
 }
 
 int iniciarPartida(struct Partida partida) {
 
-	printf("Se inicia la partida entre %s y %s.\n", partida.jugador1.nombre, partida.jugador2.nombre);
+	printf("Se inicia la partida entre %s y %s.\n", partida.jugador1.nombre,
+			partida.jugador2.nombre);
 
-	while(1) {
+	matrix_init();
+
+	for (i = 1; i < cantidad_barcos; i++) {
+		my_matrix[parametros[i][0] - VALUE][parametros[i][1] - VALUE] = 'b';
+	}
+
+	while (1) {
+		print_maps();
+		printf("enter value\n");
+		getchar();
+		system("clear");
+	}
+
+	while (1) {
 		sleep(1);
 	}
 
@@ -106,6 +179,9 @@ int main(int argc, char * argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	cantidad_barcos = argc;
+	parametros = argv;
+
 	/*---Initialize server address/port struct---*/
 	bzero(&dest, sizeof(dest));
 	dest.sin_family = AF_INET;
@@ -148,8 +224,8 @@ int main(int argc, char * argv[]) {
 	// Dar la opcion de elegir un jugador de la lista o esperar a que alguien lo elija
 	printf("Menu:\n\n");
 
-	printf("/t1. Elegir un contrincante.\n");
-	printf("/t2. Esperar a ser elegido.\n");
+	printf("\t1. Elegir un contrincante.\n");
+	printf("\t2. Esperar a ser elegido.\n");
 
 	int opcion;
 

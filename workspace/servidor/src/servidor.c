@@ -258,7 +258,7 @@ int enviarListaJugadoresDisponibles(int fd) {
 
 	struct MensajeNIPC mensajeLista;
 
-	mensajeLista = armarListaJugadoresDisponibles();
+	mensajeLista = armarListaJugadoresDisponibles(fd);
 
 	int bytesSent;
 
@@ -272,7 +272,7 @@ int enviarListaJugadoresDisponibles(int fd) {
 	return 0;
 }
 
-struct MensajeNIPC armarListaJugadoresDisponibles() {
+struct MensajeNIPC armarListaJugadoresDisponibles(int fd) {
 
 	int i, jugadores_disp_count = 0;
 	struct Jugador jugadores_disponibles[MAXJUG];
@@ -286,7 +286,7 @@ struct MensajeNIPC armarListaJugadoresDisponibles() {
 
 	for (i = 0; i < jugadorCount; i++) {
 
-		if (jugadores[i].estado == Disponible) {
+		if (jugadores[i].estado == Disponible && jugadores[i].clientfd != fd) {
 
 			jugadores_disponibles[jugadores_disp_count] = jugadores[i];
 
