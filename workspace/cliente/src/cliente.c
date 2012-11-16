@@ -158,6 +158,18 @@ int main(int argc, char * argv[]) {
 
 	if (opcion == 1) {
 
+		// Pido la lista de jugadores
+
+		struct MensajeNIPC mensajeLista;
+		mensajeLista.tipo = Lista_Jugadores;
+
+		s = send(sockfd, &mensajeLista, sizeof(struct MensajeNIPC), 0);
+
+		if (s == -1) {
+			perror("Error al enviar el mensaje.\n");
+			return EXIT_FAILURE;
+		}
+
 		// Recibo lista de jugadores
 		r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
 
@@ -219,6 +231,13 @@ int main(int argc, char * argv[]) {
 			printf("El tipo de mensaje recibido no es valido.\n");
 			return EXIT_FAILURE;
 		}
+
+		struct Partida partida;
+
+		partida.jugador1 = mensajeConfirmacion->jugadorOrigen;
+		partida.jugador2 = mensajeConfirmacion->jugadorDestino;
+
+		iniciarPartida(partida);
 	}
 
 	return EXIT_SUCCESS;

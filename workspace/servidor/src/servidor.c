@@ -53,6 +53,8 @@ int eligeJugador(struct MensajeNIPC * mensajeJugador) {
 
 	struct MensajeNIPC mensajeConfirmacion;
 	mensajeConfirmacion.tipo = Confirma_partida;
+	mensajeConfirmacion.jugadorOrigen = jugadorOrigen;
+	mensajeConfirmacion.jugadorDestino = jugadorDest;
 
 	// Le envio al jugador origen una confirmacion de que empieza la partida
 	s = send(jugadorOrigen.clientfd, &mensajeConfirmacion,
@@ -78,6 +80,7 @@ void * handler_jugador(void * args) {
 	int r;
 
 	struct Jugador jugador = (*(struct Jugador *) args);
+	int fdJugador = jugador.clientfd;
 
 	// Muestro informacion del cliente conectado
 	printf("%s:%d conectectado\n", inet_ntoa(jugador.client_addr.sin_addr),
@@ -97,7 +100,7 @@ void * handler_jugador(void * args) {
 
 	while (1) {
 
-		r = recv(jugador.clientfd, buffer, sizeof(struct MensajeNIPC), 0);
+		r = recv(fdJugador, buffer, sizeof(struct MensajeNIPC), 0);
 
 		if (r == -1) {
 			perror("Error al recibir el mensaje.\n");
@@ -118,7 +121,7 @@ void * handler_jugador(void * args) {
 
 		case Lista_Jugadores:
 
-			if (enviarListaJugadoresDisponibles(jugador.clientfd) == -1) {
+			if (enviarListaJugadoresDisponibles(fdJugador) == -1) {
 				printf("Error al enviar lista de jugadores.\n");
 				abort();
 			}
@@ -127,178 +130,177 @@ void * handler_jugador(void * args) {
 	}
 }
 
-	int main(int argc, char argv[]) {
+int main(int argc, char argv[]) {
 
-		int sockfd;
-		struct sockaddr_in self;
-		char buffer[MAXBUF];
+	int sockfd;
+	struct sockaddr_in self;
+	char buffer[MAXBUF];
 
 // Se asume que el numero de jugadores maximo es chico, sino deberia gestionarse dinamicamente el tamano del array
-		bzero(buffer, MAXBUF);
-		jugadorCount = 0;
+	bzero(buffer, MAXBUF);
+	jugadorCount = 0;
 
-		printf("Iniciando servicio...\n");
+	printf("Iniciando servicio...\n");
 
 // Creo el socket
-		if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-			perror("Error al crear el socket");
-			return EXIT_FAILURE;
-		}
-
-//Inicializo la estructura del servidor
-		bzero(&self, sizeof(self));
-		self.sin_family = AF_INET;
-		self.sin_port = htons(PUERTO);
-		self.sin_addr.s_addr = INADDR_ANY;
-
-// Asigno el numero de puerto al socket creado
-		if (bind(sockfd, (struct sockaddr*) &self, sizeof(self)) != 0) {
-			perror("Error en bind del servidor");
-			return EXIT_FAILURE;
-		}
-
-// Hago que el socket escuche en el puerto especificado
-		if (listen(sockfd, 20) != 0) {
-			perror("Error en listen del servidor");
-			return EXIT_FAILURE;
-		}
-
-		printf("Servicio iniciado en el puerto %d, esperando jugadores...\n",
-				PUERTO);
-
-// Loop principal para atender clientes
-		while (1) {
-			int clientfd;
-			struct sockaddr_in client_addr;
-			int addrlen = sizeof(client_addr);
-
-			// Acepto una nueva conexion
-			clientfd = accept(sockfd, (struct sockaddr*) &client_addr,
-					&addrlen);
-
-			struct Jugador nuevoJugador;
-
-			nuevoJugador.clientfd = clientfd;
-			nuevoJugador.client_addr = client_addr;
-
-			int result = pthread_create(&thread_ids[jugadorCount], NULL,
-					handler_jugador, &nuevoJugador);
-
-			if (result != 0) {
-				perror("Error en la creacion del thread\n");
-				return EXIT_FAILURE;
-			}
-
-			// TODO: ver cuando se cierra el clientfd
-			//close(clientfd);
-		}
-
-// Cierro el socket
-		close(sockfd);
-		return EXIT_SUCCESS;
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+		perror("Error al crear el socket");
+		return EXIT_FAILURE;
 	}
 
-	int inicializarJugador(struct Jugador nuevoJugador) {
+//Inicializo la estructura del servidor
+	bzero(&self, sizeof(self));
+	self.sin_family = AF_INET;
+	self.sin_port = htons(PUERTO);
+	self.sin_addr.s_addr = INADDR_ANY;
 
-		int r, s;
-		char buffer[MAXBUF];
-		struct Mensaje * mensaje;
+// Asigno el numero de puerto al socket creado
+	if (bind(sockfd, (struct sockaddr*) &self, sizeof(self)) != 0) {
+		perror("Error en bind del servidor");
+		return EXIT_FAILURE;
+	}
+
+// Hago que el socket escuche en el puerto especificado
+	if (listen(sockfd, 20) != 0) {
+		perror("Error en listen del servidor");
+		return EXIT_FAILURE;
+	}
+
+	printf("Servicio iniciado en el puerto %d, esperando jugadores...\n",
+			PUERTO);
+
+// Loop principal para atender clientes
+	while (1) {
+		int clientfd;
+		struct sockaddr_in client_addr;
+		int addrlen = sizeof(client_addr);
+
+		// Acepto una nueva conexion
+		clientfd = accept(sockfd, (struct sockaddr*) &client_addr, &addrlen);
+
+		struct Jugador nuevoJugador;
+
+		nuevoJugador.clientfd = clientfd;
+		nuevoJugador.client_addr = client_addr;
+
+		int result = pthread_create(&thread_ids[jugadorCount], NULL,
+				handler_jugador, &nuevoJugador);
+
+		if (result != 0) {
+			perror("Error en la creacion del thread\n");
+			return EXIT_FAILURE;
+		}
+
+		// TODO: ver cuando se cierra el clientfd
+		//close(clientfd);
+	}
+
+// Cierro el socket
+	close(sockfd);
+	return EXIT_SUCCESS;
+}
+
+int inicializarJugador(struct Jugador nuevoJugador) {
+
+	int r, s;
+	char buffer[MAXBUF];
+	struct Mensaje * mensaje;
 
 // Validacion maximo jugadores
 // TODO: Semaforo
-		if (jugadorCount >= MAXJUG)
-			return -1;
+	if (jugadorCount >= MAXJUG)
+		return -1;
 
-		bzero(buffer, MAXBUF);
+	bzero(buffer, MAXBUF);
 
 // Recibo el nombre del jugador
-		r = recv(nuevoJugador.clientfd, buffer, sizeof(struct Mensaje), 0);
+	r = recv(nuevoJugador.clientfd, buffer, sizeof(struct Mensaje), 0);
 
-		if (r == -1) {
-			printf("Error al recibir el nombre del jugador.\n");
-			return -1;
-		}
+	if (r == -1) {
+		printf("Error al recibir el nombre del jugador.\n");
+		return -1;
+	}
 
-		mensaje = (struct Mensaje *) buffer;
+	mensaje = (struct Mensaje *) buffer;
 
-		if (mensaje->tipo != Registra_Nombre)
-			return -1;
+	if (mensaje->tipo != Registra_Nombre)
+		return -1;
 
-		strcpy(nuevoJugador.nombre, mensaje->contenido);
+	strcpy(nuevoJugador.nombre, mensaje->contenido);
 
 // Inicio al jugador como disponible
-		nuevoJugador.estado = Disponible;
-		strcpy(nuevoJugador.ip, inet_ntoa(nuevoJugador.client_addr.sin_addr));
+	nuevoJugador.estado = Disponible;
+	strcpy(nuevoJugador.ip, inet_ntoa(nuevoJugador.client_addr.sin_addr));
 
 // TODO: Aca abria que agregar un semaforo y antes validar que no se haya
 // alterado el jugadorCount, posiblemente la secci'on critica sea casi todo
 // el metodo
-		jugadores[jugadorCount] = nuevoJugador;
+	jugadores[jugadorCount] = nuevoJugador;
 
-		struct MensajeNIPC mensajeRegistro;
+	struct MensajeNIPC mensajeRegistro;
 
-		mensajeRegistro.tipo = Jugador_Registrado;
-		mensajeRegistro.payload_length = sizeof(struct Jugador);
-		memcpy(mensajeRegistro.payload, &nuevoJugador, sizeof(struct Jugador));
+	mensajeRegistro.tipo = Jugador_Registrado;
+	mensajeRegistro.payload_length = sizeof(struct Jugador);
+	memcpy(mensajeRegistro.payload, &nuevoJugador, sizeof(struct Jugador));
 
-		s = send(nuevoJugador.clientfd, &mensajeRegistro,
-				sizeof(struct MensajeNIPC), 0);
+	s = send(nuevoJugador.clientfd, &mensajeRegistro,
+			sizeof(struct MensajeNIPC), 0);
 
-		if (s == -1) {
-			perror("Error al el jugador registrado.\n");
-			return -1;
-		}
-
-		return 0;
+	if (s == -1) {
+		perror("Error al el jugador registrado.\n");
+		return -1;
 	}
 
-	int enviarListaJugadoresDisponibles(int fd) {
+	return 0;
+}
 
-		struct MensajeNIPC mensajeLista;
+int enviarListaJugadoresDisponibles(int fd) {
 
-		mensajeLista = armarListaJugadoresDisponibles();
+	struct MensajeNIPC mensajeLista;
 
-		int bytesSent;
+	mensajeLista = armarListaJugadoresDisponibles();
 
-		bytesSent = send(fd, &mensajeLista, sizeof(struct MensajeNIPC), 0);
+	int bytesSent;
 
-		if (bytesSent == -1) {
-			perror("Error al enviar lista de jugadores");
-			return -1;
-		}
+	bytesSent = send(fd, &mensajeLista, sizeof(struct MensajeNIPC), 0);
 
-		return 0;
+	if (bytesSent == -1) {
+		perror("Error al enviar lista de jugadores");
+		return -1;
 	}
 
-	struct MensajeNIPC armarListaJugadoresDisponibles() {
+	return 0;
+}
 
-		int i, jugadores_disp_count = 0;
-		struct Jugador jugadores_disponibles[MAXJUG];
+struct MensajeNIPC armarListaJugadoresDisponibles() {
 
-		struct MensajeNIPC mensaje;
+	int i, jugadores_disp_count = 0;
+	struct Jugador jugadores_disponibles[MAXJUG];
+
+	struct MensajeNIPC mensaje;
 
 // Este buffer va a ser el payload del mensaje
-		char buffer[MAXBUF];
+	char buffer[MAXBUF];
 
-		bzero(buffer, MAXBUF);
+	bzero(buffer, MAXBUF);
 
-		for (i = 0; i < jugadorCount; i++) {
+	for (i = 0; i < jugadorCount; i++) {
 
-			if (jugadores[i].estado == Disponible) {
+		if (jugadores[i].estado == Disponible) {
 
-				jugadores_disponibles[jugadores_disp_count] = jugadores[i];
+			jugadores_disponibles[jugadores_disp_count] = jugadores[i];
 
-				jugadores_disp_count++;
-			}
+			jugadores_disp_count++;
 		}
+	}
 
 // Serializo la lista de jugadores disponibles
-		memcpy(buffer, jugadores_disponibles, sizeof(jugadores_disponibles));
+	memcpy(buffer, jugadores_disponibles, sizeof(jugadores_disponibles));
 
-		mensaje.tipo = Lista_Jugadores;
-		mensaje.payload_length = sizeof(jugadores_disponibles);
-		memcpy(mensaje.payload, buffer, sizeof(buffer));
+	mensaje.tipo = Lista_Jugadores;
+	mensaje.payload_length = sizeof(jugadores_disponibles);
+	memcpy(mensaje.payload, buffer, sizeof(buffer));
 
-		return mensaje;
-	}
+	return mensaje;
+}
 
