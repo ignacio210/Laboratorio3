@@ -77,18 +77,14 @@ int eligeJugador(struct MensajeNIPC * mensajeJugador) {
 
 int procesarJugada(struct MensajeNIPC * mensajeJugada) {
 
-	char pos[2];
 	int s;
-
-	memcpy(pos, mensajeJugada->payload, mensajeJugada->payload_length);
 
 	// Envio jugada al jugador destino
 
 	// Le cambio el tipo al mensaje y lo reenvio
 	mensajeJugada->tipo = Recibe_Ataque;
 
-	s = send(mensajeJugada->jugadorDestino.clientfd, &mensajeJugada,
-			sizeof(struct MensajeNIPC), 0);
+	s = send(mensajeJugada->jugadorDestino.clientfd, &mensajeJugada, sizeof(struct MensajeNIPC), 0);
 
 	if (s == -1) {
 		perror("Error al enviar el mensaje.\n");
@@ -166,19 +162,19 @@ int main(int argc, char argv[]) {
 	struct sockaddr_in self;
 	char buffer[MAXBUF];
 
-// Se asume que el numero de jugadores maximo es chico, sino deberia gestionarse dinamicamente el tamano del array
+	// Se asume que el numero de jugadores maximo es chico, sino deberia gestionarse dinamicamente el tamano del array
 	bzero(buffer, MAXBUF);
 	jugadorCount = 0;
 
 	printf("Iniciando servicio...\n");
 
-// Creo el socket
+	// Creo el socket
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("Error al crear el socket");
 		return EXIT_FAILURE;
 	}
 
-//Inicializo la estructura del servidor
+	//Inicializo la estructura del servidor
 	bzero(&self, sizeof(self));
 	self.sin_family = AF_INET;
 	self.sin_port = htons(PUERTO);
@@ -243,7 +239,7 @@ int inicializarJugador(struct Jugador nuevoJugador) {
 
 	bzero(buffer, MAXBUF);
 
-// Recibo el nombre del jugador
+	// Recibo el nombre del jugador
 	r = recv(nuevoJugador.clientfd, buffer, sizeof(struct Mensaje), 0);
 
 	if (r == -1) {
@@ -258,13 +254,13 @@ int inicializarJugador(struct Jugador nuevoJugador) {
 
 	strcpy(nuevoJugador.nombre, mensaje->contenido);
 
-// Inicio al jugador como disponible
+	// Inicio al jugador como disponible
 	nuevoJugador.estado = Disponible;
 	strcpy(nuevoJugador.ip, inet_ntoa(nuevoJugador.client_addr.sin_addr));
 
-// TODO: Aca abria que agregar un semaforo y antes validar que no se haya
-// alterado el jugadorCount, posiblemente la secci'on critica sea casi todo
-// el metodo
+	// TODO: Aca abria que agregar un semaforo y antes validar que no se haya
+	// alterado el jugadorCount, posiblemente la secci'on critica sea casi todo
+	// el metodo
 	jugadores[jugadorCount] = nuevoJugador;
 
 	struct MensajeNIPC mensajeRegistro;

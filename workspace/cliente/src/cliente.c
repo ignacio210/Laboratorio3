@@ -91,30 +91,30 @@ void liberar_recursos() {
 
 int leerJugada() {
 
-	char pos[10];
+	int pos;
+
 	int s;
 
 	while (1) {
 		print_maps();
 		printf("enter value\n");
-		scanf("%s", pos);
+		scanf("%d", &pos);
 		system("clear");
 
 		// Enviar jugada
-
-		/*struct MensajeNIPC mensajeJugada;
+		struct MensajeNIPC mensajeJugada;
 		mensajeJugada.tipo = Juega;
 		mensajeJugada.jugadorOrigen = partida.jugadorOrigen;
 		mensajeJugada.jugadorDestino = partida.jugadorDestino;
-		mensajeJugada.payload_length = strlen(pos);
-		memcpy(mensajeJugada.payload, pos, strlen(pos));
+		mensajeJugada.payload_length = sizeof(int);
+		memcpy(mensajeJugada.payload, &pos, sizeof(int));
 
 		s = send(sockfd, &mensajeJugada, sizeof(struct MensajeNIPC), 0);
 
 		if (s == -1) {
 			perror("Error al enviar el mensaje.\n");
 			return EXIT_FAILURE;
-		}*/
+		}
 	}
 
 	return 0;
@@ -140,7 +140,7 @@ int escucharServidor() {
 	mensaje = (struct MensajeNIPC *) buffer;
 
 	if(mensaje->tipo == Recibe_Ataque) {
-		char pos[10];
+		int pos;
 
 		memcpy(&pos, mensaje->payload, mensaje->payload_length);
 
