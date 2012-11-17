@@ -174,6 +174,11 @@ int main(int argc, char argv[]) {
 
 	int puerto = leerConfiguracion();
 
+	if(puerto == -1) {
+		printf("Error al leer el archivo de configuracion.\n");
+		return EXIT_FAILURE;
+	}
+
 	printf("Iniciando servicio...\n");
 
 	// Creo el socket
@@ -345,7 +350,7 @@ int leerConfiguracion() {
 
 	if (fd == -1) {
 		perror("Error al abrir el archivo de configuracion\n");
-		abort();
+		return -1;
 	}
 
 	char buffer[50];

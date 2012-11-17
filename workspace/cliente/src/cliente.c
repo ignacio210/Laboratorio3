@@ -39,7 +39,10 @@ struct Partida partida;
 struct Jugador jugadoresDisponibles[MAXJUG];
 
 struct Conexion leerConfiguracion();
+
 ssize_t readLine(int fd, void *buffer, int n);
+
+int validarPosiciones(char ** argv, char ** posiciones);
 
 void matrix_init() {
 	for (i = 0; i < NUMBER_X; i++) {
@@ -241,6 +244,7 @@ int elegirJugador() {
 }
 
 int main(int argc, char * argv[]) {
+
 	int s, r;
 	struct sockaddr_in dest;
 	char buffer[MAXBUF];
@@ -251,9 +255,15 @@ int main(int argc, char * argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	// Validacion de las posiciones de la matriz
+	cantidad_barcos = argc - 2; // Le resto los primeros 2 argumentos: ejecutable y nombre de jugador
+
+	char * posiciones[cantidad_barcos];
+
+	validarPosiciones(argv, posiciones);
+
 	struct Conexion conexion = leerConfiguracion();
 
-	cantidad_barcos = argc;
 	parametros = argv;
 
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -482,4 +492,27 @@ ssize_t readLine(int fd, void *buffer, int n) {
 
 	*buf = '\0';
 	return totRead;
+}
+
+int validarPosiciones(char ** argv, char ** posiciones) {
+
+	int i, j = 2; // j tiene la posicion inicial del primer barco en argv
+
+	for (i = 0; i < cantidad_barcos; i++) {
+
+		if (strlen(argv[j + i]) != 2) {
+			printf("La posicion %d ingresada no es valida.\n", i + 1);
+			return -1;
+		}
+
+		if (argv[j + i][0] < '0' || argv[j + i][0] > '9' || argv[j + i][1] < '0'
+				|| argv[j + i][1] > '9') {
+			printf("La posicion %d ingresada no es valida.\n", i + 1);
+			return -1;
+		}
+
+		posiciones[i] = argv[j + i];
+	}
+
+	return 0;
 }
