@@ -1,17 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <resolv.h>
 #include <errno.h>
 #include <string.h>
-#include <pthread.h> // gcc miThread.c -o miThread -l pthread
+#include <pthread.h>
 #include "estructuras.h"
 
 #define PORT_TIME       13
-#define MY_PORT        9997
-#define SERVER_ADDR     "127.0.0.1"     /* localhost */
-#define MAXBUF          2048
 
 // Defines y variables para funcion grafica
 #define NUMBER_X 10
@@ -36,6 +37,9 @@ struct Partida partida;
 
 // Lista de jugadores disponibles (se va actualizando)
 struct Jugador jugadoresDisponibles[MAXJUG];
+
+struct Conexion leerConfiguracion();
+ssize_t readLine(int fd, void *buffer, int n);
 
 void matrix_init() {
 	for (i = 0; i < NUMBER_X; i++) {
@@ -139,7 +143,7 @@ int escucharServidor() {
 
 	mensaje = (struct MensajeNIPC *) buffer;
 
-	if(mensaje->tipo == Recibe_Ataque) {
+	if (mensaje->tipo == Recibe_Ataque) {
 		int pos;
 
 		memcpy(&pos, mensaje->payload, mensaje->payload_length);
@@ -247,20 +251,22 @@ int main(int argc, char * argv[]) {
 		return EXIT_FAILURE;
 	}
 
+	struct Conexion conexion = leerConfiguracion();
+
+	cantidad_barcos = argc;
+	parametros = argv;
+
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("Socket");
 		return EXIT_FAILURE;
 	}
 
-	cantidad_barcos = argc;
-	parametros = argv;
-
 	/*---Initialize server address/port struct---*/
 	bzero(&dest, sizeof(dest));
 	dest.sin_family = AF_INET;
-	dest.sin_port = htons(MY_PORT);
-	if (inet_aton(SERVER_ADDR, &dest.sin_addr.s_addr) == 0) {
-		perror(SERVER_ADDR);
+	dest.sin_port = htons(conexion.puerto);
+	if (inet_aton(conexion.ip, &dest.sin_addr.s_addr) == 0) {
+		perror(conexion.ip);
 		return EXIT_FAILURE;
 	}
 
@@ -393,4 +399,87 @@ int main(int argc, char * argv[]) {
 	}
 
 	return EXIT_SUCCESS;
+}
+
+struct Conexion leerConfiguracion() {
+
+	int fd;
+	struct Conexion conexion;
+
+	fd = open("config.txt", O_RDONLY);
+
+	if (fd == -1) {
+		perror("Error al abrir el archivo de configuracion\n");
+		abort();
+	}
+
+	char buffer[50];
+
+	bzero(buffer, 50);
+	int r = readLine(fd, buffer, 50);
+
+	bzero(buffer, 50);
+	r = readLine(fd, buffer, 50);
+
+	strcpy(conexion.ip, buffer);
+
+	bzero(buffer, 50);
+	r = readLine(fd, buffer, 50);
+
+	bzero(buffer, 50);
+	r = readLine(fd, buffer, 50);
+
+	conexion.puerto = atoi(buffer);
+
+	close(fd);
+
+	return conexion;
+}
+
+ssize_t readLine(int fd, void *buffer, int n) {
+
+	ssize_t numRead; /* # of bytes fetched by last read() */
+	size_t totRead; /* Total bytes read so far */
+	char *buf;
+	char ch;
+
+	if (n <= 0 || buffer == NULL ) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	buf = buffer; /* No pointer arithmetic on "void *" */
+
+	totRead = 0;
+	for (;;) {
+		numRead = read(fd, &ch, 1);
+
+		if (numRead == -1) {
+			if (errno == EINTR) /* Interrupted --> restart read() */
+				continue;
+			else
+				return -1; /* Some other error */
+
+		} else if (numRead == 0) { /* EOF */
+			if (totRead == 0) /* No bytes read; return 0 */
+				return 0;
+			else
+				/* Some bytes read; add '\0' */
+				break;
+
+		} else { /* 'numRead' must be 1 if we get here */
+
+			if (ch == '\n') {
+				break;
+			}
+
+			if (totRead < n - 1) { /* Discard > (n - 1) bytes */
+				totRead++;
+				*buf++ = ch;
+			}
+		}
+	}
+
+	*buf = '\0';
+	return totRead;
 }

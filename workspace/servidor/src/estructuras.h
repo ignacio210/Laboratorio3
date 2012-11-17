@@ -5,6 +5,7 @@
 #define CONTENIDO_LEN 256 // Longitud maxima para el campo contenido de los mensajes
 
 #define MAXJUG 16
+#define MAXBUF 2048
 
 // Tipos de mensajes que pueden ser intercambiados entre el servidor y los clientes.
 typedef enum {
@@ -22,6 +23,12 @@ typedef enum {
 	Disponible,
 	Jugando
 } ESTADO;
+
+// Estructura para la configuracion de conexion
+struct Conexion {
+	char ip[15];
+	int puerto;
+};
 
 // Estructura para el jugador
 struct Jugador {

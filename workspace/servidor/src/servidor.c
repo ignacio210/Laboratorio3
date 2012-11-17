@@ -5,11 +5,13 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <pthread.h> // gcc miThread.c -o miThread -l pthread
 #include "estructuras.h"
 
-#define MAXBUF		2048
-#define PUERTO		9997 // TODO: Sacar el puerto de un archivo de configuracion
 int jugadorCount;
 struct Jugador jugadores[MAXJUG];
 
@@ -17,6 +19,9 @@ struct Jugador jugadores[MAXJUG];
 pthread_t thread_ids[MAXJUG];
 
 // TODO: Agregar firmas de funciones
+
+ssize_t readLine(int fd, void *buffer, int n);
+
 int inicializarJugador(struct Jugador nuevoJugador);
 
 struct Jugador buscarJugador(int fdJugador) {
@@ -84,7 +89,8 @@ int procesarJugada(struct MensajeNIPC * mensajeJugada) {
 	// Le cambio el tipo al mensaje y lo reenvio
 	mensajeJugada->tipo = Recibe_Ataque;
 
-	s = send(mensajeJugada->jugadorDestino.clientfd, &mensajeJugada, sizeof(struct MensajeNIPC), 0);
+	s = send(mensajeJugada->jugadorDestino.clientfd, &mensajeJugada,
+			sizeof(struct MensajeNIPC), 0);
 
 	if (s == -1) {
 		perror("Error al enviar el mensaje.\n");
@@ -166,6 +172,8 @@ int main(int argc, char argv[]) {
 	bzero(buffer, MAXBUF);
 	jugadorCount = 0;
 
+	int puerto = leerConfiguracion();
+
 	printf("Iniciando servicio...\n");
 
 	// Creo el socket
@@ -177,7 +185,7 @@ int main(int argc, char argv[]) {
 	//Inicializo la estructura del servidor
 	bzero(&self, sizeof(self));
 	self.sin_family = AF_INET;
-	self.sin_port = htons(PUERTO);
+	self.sin_port = htons(puerto);
 	self.sin_addr.s_addr = INADDR_ANY;
 
 // Asigno el numero de puerto al socket creado
@@ -192,8 +200,7 @@ int main(int argc, char argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	printf("Servicio iniciado en el puerto %d, esperando jugadores...\n",
-			PUERTO);
+	printf("Servicio iniciado en el puerto %d, esperando jugadores...\n", puerto);
 
 // Loop principal para atender clientes
 	while (1) {
@@ -328,5 +335,78 @@ struct MensajeNIPC armarListaJugadoresDisponibles(int fd) {
 	memcpy(mensaje.payload, buffer, sizeof(buffer));
 
 	return mensaje;
+}
+
+int leerConfiguracion() {
+
+	int fd, r;
+
+	fd = open("config.txt", O_RDONLY);
+
+	if (fd == -1) {
+		perror("Error al abrir el archivo de configuracion\n");
+		abort();
+	}
+
+	char buffer[50];
+
+	bzero(buffer, 50);
+	r = readLine(fd, buffer, 50);
+
+	bzero(buffer, 50);
+	r = readLine(fd, buffer, 50);
+
+	int puerto = atoi(buffer);
+
+	close(fd);
+
+	return puerto;
+}
+
+ssize_t readLine(int fd, void *buffer, int n) {
+	ssize_t numRead; /* # of bytes fetched by last read() */
+	size_t totRead; /* Total bytes read so far */
+	char *buf;
+	char ch;
+
+	if (n <= 0 || buffer == NULL ) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	buf = buffer; /* No pointer arithmetic on "void *" */
+
+	totRead = 0;
+	for (;;) {
+		numRead = read(fd, &ch, 1);
+
+		if (numRead == -1) {
+			if (errno == EINTR) /* Interrupted --> restart read() */
+				continue;
+			else
+				return -1; /* Some other error */
+
+		} else if (numRead == 0) { /* EOF */
+			if (totRead == 0) /* No bytes read; return 0 */
+				return 0;
+			else
+				/* Some bytes read; add '\0' */
+				break;
+
+		} else { /* 'numRead' must be 1 if we get here */
+
+			if (ch == '\n') {
+				break;
+			}
+
+			if (totRead < n - 1) { /* Discard > (n - 1) bytes */
+				totRead++;
+				*buf++ = ch;
+			}
+		}
+	}
+
+	*buf = '\0';
+	return totRead;
 }
 
