@@ -12,155 +12,26 @@
 #include <pthread.h> // gcc miThread.c -o miThread -l pthread
 #include "estructuras.h"
 
+// Firmas de funciones
+ssize_t readLine(int fd, void *buffer, int n);
+
+int inicializarJugador(struct Jugador nuevoJugador);
+
+struct Jugador buscarJugador(int fdJugador);
+
+struct MensajeNIPC armarListaJugadoresDisponibles();
+
+int eligeJugador(struct MensajeNIPC * mensajeJugador);
+
+int procesarJugada(struct MensajeNIPC * mensajeJugada);
+
+void * handler_jugador(void * args);
+
 int jugadorCount;
 struct Jugador jugadores[MAXJUG];
 
 // voy a tener un thread por cliente
 pthread_t thread_ids[MAXJUG];
-
-// TODO: Agregar firmas de funciones
-
-ssize_t readLine(int fd, void *buffer, int n);
-
-int inicializarJugador(struct Jugador nuevoJugador);
-
-struct Jugador buscarJugador(int fdJugador) {
-
-	int i;
-
-	for (i = 0; i < MAXJUG; i++) {
-		if (jugadores[i].clientfd == fdJugador)
-			return jugadores[i];
-	}
-}
-
-struct MensajeNIPC armarListaJugadoresDisponibles();
-
-int eligeJugador(struct MensajeNIPC * mensajeJugador) {
-
-	int numeroJugador, s;
-
-	memcpy(&numeroJugador, mensajeJugador->payload,
-			mensajeJugador->payload_length);
-
-	// Empieza partida
-	struct Jugador jugadorOrigen = buscarJugador(
-			mensajeJugador->jugadorOrigen.clientfd);
-
-	struct Jugador jugadorDest = buscarJugador(
-			mensajeJugador->jugadorDestino.clientfd);
-
-	printf("Empieza partida entre %s y %s.\n", jugadorOrigen.nombre,
-			jugadorDest.nombre);
-
-	jugadorOrigen.estado = Jugando;
-	jugadorDest.estado = Jugando;
-
-	struct MensajeNIPC mensajeConfirmacion;
-	mensajeConfirmacion.tipo = Confirma_partida;
-	mensajeConfirmacion.jugadorOrigen = jugadorOrigen;
-	mensajeConfirmacion.jugadorDestino = jugadorDest;
-
-	// Le envio al jugador origen una confirmacion de que empieza la partida
-	s = send(jugadorOrigen.clientfd, &mensajeConfirmacion,
-			sizeof(struct MensajeNIPC), 0);
-
-	if (s == -1) {
-		perror("Error al enviar confirmacion.\n");
-		return -1;
-	}
-
-	// Le envio al jugador destino una confirmacion de que va a empezar la partida
-	s = send(jugadorDest.clientfd, &mensajeConfirmacion,
-			sizeof(struct MensajeNIPC), 0);
-
-	if (s == -1) {
-		perror("Error al el jugador registrado.\n");
-		return -1;
-	}
-}
-
-int procesarJugada(struct MensajeNIPC * mensajeJugada) {
-
-	int s;
-
-	// Envio jugada al jugador destino
-
-	// Le cambio el tipo al mensaje y lo reenvio
-	mensajeJugada->tipo = Recibe_Ataque;
-
-	s = send(mensajeJugada->jugadorDestino.clientfd, &mensajeJugada,
-			sizeof(struct MensajeNIPC), 0);
-
-	if (s == -1) {
-		perror("Error al enviar el mensaje.\n");
-		return -1;
-	}
-}
-
-void * handler_jugador(void * args) {
-
-	int r;
-
-	struct Jugador jugador = (*(struct Jugador *) args);
-	int fdJugador = jugador.clientfd;
-
-	// Muestro informacion del cliente conectado
-	printf("%s:%d conectectado\n", inet_ntoa(jugador.client_addr.sin_addr),
-			ntohs(jugador.client_addr.sin_port));
-
-	// TODO: Ver de agregar semaforos en esta funcion donde corresponda
-	if (inicializarJugador(jugador) == -1) {
-		printf("Error al inicializar Jugador.\n");
-		abort();
-	}
-
-	// TODO: Agregar semaforo
-	jugadorCount++;
-
-	char buffer[MAXBUF];
-	TIPO_MENSAJE tipo;
-
-	while (1) {
-
-		r = recv(fdJugador, buffer, sizeof(struct MensajeNIPC), 0);
-
-		if (r == -1) {
-			perror("Error al recibir el mensaje.\n");
-			abort();
-		}
-
-		struct MensajeNIPC * mensajeJugador;
-
-		mensajeJugador = (struct MensajeNIPC *) buffer;
-
-		switch (mensajeJugador->tipo) {
-
-		case Elige_Jugador:
-
-			eligeJugador(mensajeJugador);
-
-			break;
-
-		case Lista_Jugadores:
-
-			if (enviarListaJugadoresDisponibles(fdJugador) == -1) {
-				printf("Error al enviar lista de jugadores.\n");
-				abort();
-			}
-			break;
-
-		case Juega:
-
-			if (procesarJugada(mensajeJugador) == -1) {
-				printf("Error al procesar la jugada.\n");
-				abort();
-			}
-			break;
-
-		}
-	}
-}
 
 int main(int argc, char argv[]) {
 
@@ -172,6 +43,7 @@ int main(int argc, char argv[]) {
 	bzero(buffer, MAXBUF);
 	jugadorCount = 0;
 
+	// Se lee el puerto en el que va a correr el server de un archivo de configuracion.
 	int puerto = leerConfiguracion();
 
 	if(puerto == -1) {
@@ -193,13 +65,13 @@ int main(int argc, char argv[]) {
 	self.sin_port = htons(puerto);
 	self.sin_addr.s_addr = INADDR_ANY;
 
-// Asigno el numero de puerto al socket creado
+	// Asigno el numero de puerto al socket creado
 	if (bind(sockfd, (struct sockaddr*) &self, sizeof(self)) != 0) {
 		perror("Error en bind del servidor");
 		return EXIT_FAILURE;
 	}
 
-// Hago que el socket escuche en el puerto especificado
+	// Hago que el socket escuche en el puerto especificado
 	if (listen(sockfd, 20) != 0) {
 		perror("Error en listen del servidor");
 		return EXIT_FAILURE;
@@ -207,8 +79,9 @@ int main(int argc, char argv[]) {
 
 	printf("Servicio iniciado en el puerto %d, esperando jugadores...\n", puerto);
 
-// Loop principal para atender clientes
+	// Loop principal para atender clientes
 	while (1) {
+
 		int clientfd;
 		struct sockaddr_in client_addr;
 		int addrlen = sizeof(client_addr);
@@ -216,13 +89,14 @@ int main(int argc, char argv[]) {
 		// Acepto una nueva conexion
 		clientfd = accept(sockfd, (struct sockaddr*) &client_addr, &addrlen);
 
+		// Cuando se conecta un jugador, armo un struct de tipo jugador con la informacion basica y
+		// ejecuto un nuevo thread para que atienda al jugador.
 		struct Jugador nuevoJugador;
 
 		nuevoJugador.clientfd = clientfd;
-		nuevoJugador.client_addr = client_addr;
+		nuevoJugador.client_addr = client_addr; //TODO: Ver si esto se puede mejorar y solo pasarle el clientfd
 
-		int result = pthread_create(&thread_ids[jugadorCount], NULL,
-				handler_jugador, &nuevoJugador);
+		int result = pthread_create(&thread_ids[jugadorCount], NULL, handler_jugador, &nuevoJugador);
 
 		if (result != 0) {
 			perror("Error en la creacion del thread\n");
@@ -233,7 +107,7 @@ int main(int argc, char argv[]) {
 		//close(clientfd);
 	}
 
-// Cierro el socket
+	// Cierro el socket
 	close(sockfd);
 	return EXIT_SUCCESS;
 }
@@ -341,6 +215,144 @@ struct MensajeNIPC armarListaJugadoresDisponibles(int fd) {
 
 	return mensaje;
 }
+
+struct Jugador buscarJugador(int fdJugador) {
+
+	int i;
+
+	for (i = 0; i < MAXJUG; i++) {
+		if (jugadores[i].clientfd == fdJugador)
+			return jugadores[i];
+	}
+}
+
+int eligeJugador(struct MensajeNIPC * mensajeJugador) {
+
+	int numeroJugador, s;
+
+	memcpy(&numeroJugador, mensajeJugador->payload,
+			mensajeJugador->payload_length);
+
+	// Empieza partida
+	struct Jugador jugadorOrigen = buscarJugador(
+			mensajeJugador->jugadorOrigen.clientfd);
+
+	struct Jugador jugadorDest = buscarJugador(
+			mensajeJugador->jugadorDestino.clientfd);
+
+	printf("Empieza partida entre %s y %s.\n", jugadorOrigen.nombre,
+			jugadorDest.nombre);
+
+	jugadorOrigen.estado = Jugando;
+	jugadorDest.estado = Jugando;
+
+	struct MensajeNIPC mensajeConfirmacion;
+	mensajeConfirmacion.tipo = Confirma_partida;
+	mensajeConfirmacion.jugadorOrigen = jugadorOrigen;
+	mensajeConfirmacion.jugadorDestino = jugadorDest;
+
+	// Le envio al jugador origen una confirmacion de que empieza la partida
+	s = send(jugadorOrigen.clientfd, &mensajeConfirmacion,
+			sizeof(struct MensajeNIPC), 0);
+
+	if (s == -1) {
+		perror("Error al enviar confirmacion.\n");
+		return -1;
+	}
+
+	// Le envio al jugador destino una confirmacion de que va a empezar la partida
+	s = send(jugadorDest.clientfd, &mensajeConfirmacion,
+			sizeof(struct MensajeNIPC), 0);
+
+	if (s == -1) {
+		perror("Error al el jugador registrado.\n");
+		return -1;
+	}
+}
+
+int procesarJugada(struct MensajeNIPC * mensajeJugada) {
+
+	int s;
+
+	// Envio jugada al jugador destino
+
+	// Le cambio el tipo al mensaje y lo reenvio
+	mensajeJugada->tipo = Recibe_Ataque;
+
+	printf("Recibi una jugada de %d, se la envio a %d.\n", mensajeJugada->jugadorOrigen.clientfd, mensajeJugada->jugadorDestino.clientfd);
+
+	s = send(mensajeJugada->jugadorDestino.clientfd, mensajeJugada, sizeof(struct MensajeNIPC), 0);
+
+	if (s == -1) {
+		perror("Error al enviar el mensaje.\n");
+		return -1;
+	}
+}
+
+// Funcion principal que ejecuta el thread para cada jugador que se conecta
+void * handler_jugador(void * args) {
+
+	int r;
+
+	// Al crear el thread se le pasa una estructura de tipo jugador
+	struct Jugador jugador = (*(struct Jugador *) args);
+	int fdJugador = jugador.clientfd;
+
+	// Muestro informacion del cliente conectado
+	printf("%s:%d conectado\n", inet_ntoa(jugador.client_addr.sin_addr), ntohs(jugador.client_addr.sin_port));
+
+	// TODO: Ver de agregar semaforos
+	if (inicializarJugador(jugador) == -1) {
+		printf("Error al inicializar Jugador.\n");
+		abort();
+	}
+
+	// TODO: Agregar semaforo
+	jugadorCount++;
+
+	char buffer[MAXBUF];
+	TIPO_MENSAJE tipo;
+
+	while (1) {
+
+		r = recv(fdJugador, buffer, sizeof(struct MensajeNIPC), 0);
+
+		if (r == -1) {
+			perror("Error al recibir el mensaje.\n");
+			abort();
+		}
+
+		struct MensajeNIPC * mensajeJugador = (struct MensajeNIPC *) buffer;
+
+		switch (mensajeJugador->tipo) {
+
+		case Elige_Jugador:
+
+			eligeJugador(mensajeJugador);
+
+			break;
+
+		case Lista_Jugadores:
+
+			if (enviarListaJugadoresDisponibles(fdJugador) == -1) {
+				printf("Error al enviar lista de jugadores.\n");
+				abort();
+			}
+
+			break;
+
+		case Juega:
+
+			if (procesarJugada(mensajeJugador) == -1) {
+				printf("Error al procesar la jugada.\n");
+				abort();
+			}
+			break;
+
+		}
+	}
+}
+
 
 int leerConfiguracion() {
 
