@@ -46,6 +46,8 @@ int iniciarPartida(struct Partida partida);
 
 int elegirJugador();
 
+int handler_ataque(struct MensajeNIPC * mensaje);
+
 // Variables para interfaz grafica
 char my_matrix[NUMBER_X][NUMBER_Y];
 char remote_matrix[NUMBER_X][NUMBER_Y];
@@ -232,6 +234,7 @@ int main(int argc, char * argv[]) {
 		}
 	}
 
+	liberar_recursos();
 	return EXIT_SUCCESS;
 }
 
@@ -389,8 +392,10 @@ void print_map_line(char value[]) {
 	for (j = 0; j < NUMBER_Y; j++) {
 		if (value[j] == 'a') {
 			printf(".");
-		} else {
+		} else if (value[j] == 'b') {
 			printf("x");
+		} else {
+			printf("A");
 		}
 		printf(" ");
 	}
@@ -437,7 +442,7 @@ void * leerJugada(void * args) {
 
 		print_maps();
 
-		if(coords_invalidas) {
+		if (coords_invalidas) {
 			printf("Las coordenadas ingresadas no son validas.\n");
 		}
 
@@ -447,12 +452,12 @@ void * leerJugada(void * args) {
 		system("clear");
 
 		//Validacion coordenadas
-		if(strlen(pos) != 2) {
+		if (strlen(pos) != 2) {
 			coords_invalidas = 1;
 			continue;
 		}
 
-		if(pos[0] < '0' || pos[0] > '9' || pos[1] < '0' || pos[1] > '9') {
+		if (pos[0] < '0' || pos[0] > '9' || pos[1] < '0' || pos[1] > '9') {
 			coords_invalidas = 1;
 			continue;
 		}
@@ -497,69 +502,186 @@ void * escucharServidor(void * args) {
 
 		mensaje = (struct MensajeNIPC *) buffer;
 
-		if (mensaje->tipo == Recibe_Ataque) {
+		switch (mensaje->tipo) {
 
-			int i, hundido = 0, repetido = 0;
+		case Recibe_Ataque:
 
-			// Se fija si las coordenadas del ataque coinciden con alguna posicion
-			for (i = 0; i < cantidad_barcos; i++) {
-
-				if (strcmp(posiciones_barcos[i], mensaje->payload) == 0) {
-					hundido = 1;
-				}
+			if (handler_ataque(mensaje) == -1) {
+				printf("Error al procesar el ataque.\n");
+				abort();
 			}
 
-			// Se fija que ese barco no estuviera hundido
-			for (i = 0; i < cantidad_barcos_hundidos; i++) {
+			break;
 
-				if (strcmp(posiciones_barcos_hundidos[i], mensaje->payload) == 0) {
-					repetido = 1;
-				}
-			}
+		case Resultado:
+			handler_respuesta(mensaje);
+			break;
 
-			if (hundido && !repetido) {
-
-				// Guardo la posicion del barco undido e incremento la cantidad de undidos
-
-				strcpy(posiciones_barcos_hundidos[cantidad_barcos_hundidos], mensaje->payload);
-				cantidad_barcos_hundidos++;
-
-				// Actualizo la interfaz grafica
-				int x, y;
-
-				x = mensaje->payload[0] - VALUE;
-				y = mensaje->payload[1] - VALUE;
-
-				//printf("%d %d.\n", x, y);
-
-				// Cambio la 'X' por '.'
-				my_matrix[x][y] = 'a';
-
-				system("clear");
-
-				print_maps();
-
-				printf("Se recibio un ataque a coordenadas %s... Hundido.\n",mensaje->payload);
-
-				printf("enter value\n");
-
-				if(cantidad_barcos_hundidos == cantidad_barcos) {
-					// Logica de fin de la partida
-				}
-			}
-			else {
-
-				system("clear");
-
-				print_maps();
-
-				printf("Se recibio un ataque a coordenadas %s... Agua.\n",mensaje->payload);
-			}
-
+		case Fin_partida:
+			handler_fin(mensaje);
+			break;
 		}
-
 	}
 
+}
+
+int handler_ataque(struct MensajeNIPC * mensaje) {
+
+	int i, hundido = 0, repetido = 0;
+
+	// Mensaje que voy a enviar informando el resultado
+	struct Resultado_Ataque resultado_ataq;
+
+	// Se fija si las coordenadas del ataque coinciden con alguna posicion
+	for (i = 0; i < cantidad_barcos; i++) {
+
+		if (strcmp(posiciones_barcos[i], mensaje->payload) == 0) {
+			hundido = 1;
+		}
+	}
+
+	// Se fija que ese barco no estuviera hundido
+	for (i = 0; i < cantidad_barcos_hundidos; i++) {
+
+		if (strcmp(posiciones_barcos_hundidos[i], mensaje->payload) == 0) {
+			repetido = 1;
+		}
+	}
+
+	if (hundido && !repetido) {
+
+		// Seteo mensaje de respuesta
+		resultado_ataq.resultado = Hundido;
+
+		// Guardo la posicion del barco undido e incremento la cantidad de undidos
+
+		strcpy(posiciones_barcos_hundidos[cantidad_barcos_hundidos],
+				mensaje->payload);
+		cantidad_barcos_hundidos++;
+
+		// Actualizo la interfaz grafica
+		int x, y;
+
+		x = mensaje->payload[0] - VALUE;
+		y = mensaje->payload[1] - VALUE;
+
+		// Cambio la 'X' por '.'
+		my_matrix[x][y] = 'a';
+
+		system("clear");
+
+		print_maps();
+
+		printf("Se recibio un ataque a coordenadas %s... Hundido.\n",
+				mensaje->payload);
+
+		printf("enter value\n");
+
+	} else {
+
+		// Seteo respuesta del mensaje
+		resultado_ataq.resultado = Agua;
+
+		system("clear");
+
+		print_maps();
+
+		printf("Se recibio un ataque a coordenadas %s... Agua.\n",
+				mensaje->payload);
+	}
+
+	// Envio el mensaje con la respuesta de la jugada
+
+	strcpy(resultado_ataq.coordenadas, mensaje->payload);
+
+	struct MensajeNIPC mensaje_resultado;
+	mensaje_resultado.tipo = Resultado;
+	mensaje_resultado.payload_length = sizeof(struct Resultado_Ataque);
+	memcpy(mensaje_resultado.payload, &resultado_ataq,
+			sizeof(struct Resultado_Ataque));
+	mensaje_resultado.jugadorOrigen = jugador;
+	mensaje_resultado.jugadorDestino = partida.jugadorDestino;
+
+	int s = send(sockfd, &mensaje_resultado, sizeof(struct MensajeNIPC), 0);
+
+	if (s == -1) {
+		perror("Error al enviar el mensaje.\n");
+		return -1;
+	}
+
+	if (cantidad_barcos_hundidos == cantidad_barcos) {
+		// Logica de fin de la partida
+
+		struct MensajeNIPC mensaje_fin_partida;
+		mensaje_fin_partida.tipo = Fin_partida;
+		mensaje_fin_partida.payload_length = sizeof(struct Jugador);
+
+		// Envio el jugador ganador
+
+		memcpy(mensaje_fin_partida.payload, &partida.jugadorDestino, sizeof(struct Jugador));
+
+		mensaje_fin_partida.jugadorOrigen = jugador;
+		mensaje_fin_partida.jugadorDestino = partida.jugadorDestino;
+
+		int s = send(sockfd, &mensaje_fin_partida, sizeof(struct MensajeNIPC), 0);
+
+		if (s == -1) {
+			perror("Error al enviar el mensaje.\n");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int handler_respuesta(struct MensajeNIPC * mensaje) {
+
+	struct Resultado_Ataque resultado;
+	char simbolo;
+
+	memcpy(&resultado, mensaje->payload, mensaje->payload_length);
+
+	if (resultado.resultado == Agua) {
+		simbolo = 'c';
+	} else {
+		simbolo = 'b';
+	}
+
+	// Actualizo la interfaz grafica remota
+	int x, y;
+
+	x = resultado.coordenadas[0] - VALUE;
+	y = resultado.coordenadas[1] - VALUE;
+
+	remote_matrix[x][y] = simbolo;
+
+	system("clear");
+
+	print_maps();
+
+	if (resultado.resultado == Agua) {
+		printf("Resultado de ataque a coordenadas %s: Agua.\n",
+				resultado.coordenadas);
+	} else {
+		printf("Resultado de ataque a coordenadas %s: Hundido.\n",
+				resultado.coordenadas);
+	}
+
+	printf("enter value\n");
+
+	return 0;
+}
+
+int handler_fin(struct MensajeNIPC * mensaje) {
+
+	struct Jugador ganador;
+
+	// Cargo el jugador que gano
+	memcpy(&ganador, mensaje->payload, mensaje->payload_length);
+
+	printf("Termino la partida, el ganador es: %s.\n", ganador.nombre);
+
+	return 0;
 }
 
 int iniciarPartida(struct Partida partida) {
@@ -574,7 +696,8 @@ int iniciarPartida(struct Partida partida) {
 
 	// Cargo las posiciones ingresadas por el jugador
 	for (i = 0; i < cantidad_barcos; i++) {
-		my_matrix[posiciones_barcos[i][0] - VALUE][posiciones_barcos[i][1]- VALUE] = 'b';
+		my_matrix[posiciones_barcos[i][0] - VALUE][posiciones_barcos[i][1]
+				- VALUE] = 'b';
 	}
 
 	// Voy a separar la ejecucion en 2 threads, uno va a leer lo que ingresa el usuario

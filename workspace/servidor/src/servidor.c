@@ -46,7 +46,7 @@ int main(int argc, char argv[]) {
 	// Se lee el puerto en el que va a correr el server de un archivo de configuracion.
 	int puerto = leerConfiguracion();
 
-	if(puerto == -1) {
+	if (puerto == -1) {
 		printf("Error al leer el archivo de configuracion.\n");
 		return EXIT_FAILURE;
 	}
@@ -77,7 +77,8 @@ int main(int argc, char argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	printf("Servicio iniciado en el puerto %d, esperando jugadores...\n", puerto);
+	printf("Servicio iniciado en el puerto %d, esperando jugadores...\n",
+			puerto);
 
 	// Loop principal para atender clientes
 	while (1) {
@@ -96,7 +97,8 @@ int main(int argc, char argv[]) {
 		nuevoJugador.clientfd = clientfd;
 		nuevoJugador.client_addr = client_addr; //TODO: Ver si esto se puede mejorar y solo pasarle el clientfd
 
-		int result = pthread_create(&thread_ids[jugadorCount], NULL, handler_jugador, &nuevoJugador);
+		int result = pthread_create(&thread_ids[jugadorCount], NULL,
+				handler_jugador, &nuevoJugador);
 
 		if (result != 0) {
 			perror("Error en la creacion del thread\n");
@@ -279,9 +281,12 @@ int procesarJugada(struct MensajeNIPC * mensajeJugada) {
 	// Le cambio el tipo al mensaje y lo reenvio
 	mensajeJugada->tipo = Recibe_Ataque;
 
-	printf("Recibi una jugada de %d, se la envio a %d.\n", mensajeJugada->jugadorOrigen.clientfd, mensajeJugada->jugadorDestino.clientfd);
+	printf("Recibi una jugada de %d, se la envio a %d.\n",
+			mensajeJugada->jugadorOrigen.clientfd,
+			mensajeJugada->jugadorDestino.clientfd);
 
-	s = send(mensajeJugada->jugadorDestino.clientfd, mensajeJugada, sizeof(struct MensajeNIPC), 0);
+	s = send(mensajeJugada->jugadorDestino.clientfd, mensajeJugada,
+			sizeof(struct MensajeNIPC), 0);
 
 	if (s == -1) {
 		perror("Error al enviar el mensaje.\n");
@@ -292,14 +297,15 @@ int procesarJugada(struct MensajeNIPC * mensajeJugada) {
 // Funcion principal que ejecuta el thread para cada jugador que se conecta
 void * handler_jugador(void * args) {
 
-	int r;
+	int r, s;
 
 	// Al crear el thread se le pasa una estructura de tipo jugador
 	struct Jugador jugador = (*(struct Jugador *) args);
 	int fdJugador = jugador.clientfd;
 
 	// Muestro informacion del cliente conectado
-	printf("%s:%d conectado\n", inet_ntoa(jugador.client_addr.sin_addr), ntohs(jugador.client_addr.sin_port));
+	printf("%s:%d conectado\n", inet_ntoa(jugador.client_addr.sin_addr),
+			ntohs(jugador.client_addr.sin_port));
 
 	// TODO: Ver de agregar semaforos
 	if (inicializarJugador(jugador) == -1) {
@@ -349,10 +355,38 @@ void * handler_jugador(void * args) {
 			}
 			break;
 
+		case Resultado:
+
+			// Reenvio el mensaje al jugador correspondiente
+			s = send(mensajeJugador->jugadorDestino.clientfd, mensajeJugador, sizeof(struct MensajeNIPC), 0);
+
+			if (s == -1) {
+				perror("Error al enviar el mensaje de resultado.\n");
+				abort();
+			}
+
+			break;
+		case Fin_partida:
+
+			// Envio mensaje de finalizacion a los 2 jugadores
+			s = send(mensajeJugador->jugadorDestino.clientfd, mensajeJugador, sizeof(struct MensajeNIPC), 0);
+
+			if (s == -1) {
+				perror("Error al enviar el mensaje de resultado.\n");
+				abort();
+			}
+
+			s = send(mensajeJugador->jugadorOrigen.clientfd, mensajeJugador, sizeof(struct MensajeNIPC), 0);
+
+			if (s == -1) {
+				perror("Error al enviar el mensaje de resultado.\n");
+				abort();
+			}
+
+			break;
 		}
 	}
 }
-
 
 int leerConfiguracion() {
 

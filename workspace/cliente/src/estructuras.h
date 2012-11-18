@@ -15,7 +15,9 @@ typedef enum {
 		Lista_Jugadores,
 		Jugador_Registrado,
 		Confirma_partida,
-		Recibe_Ataque
+		Recibe_Ataque,
+		Resultado,
+		Fin_partida
 		} TIPO_MENSAJE;
 
 // Estados del jugador
@@ -23,6 +25,18 @@ typedef enum {
 	Disponible,
 	Jugando
 } ESTADO;
+
+// Resultados de una jugada
+typedef enum {
+	Agua,
+	Hundido
+} RESULTADO;
+
+// Estados de la partida
+typedef enum {
+	EnProgreso,
+	Terminada
+} ESTADO_PARTIDA;
 
 // Estructura para la configuracion de conexion
 struct Conexion {
@@ -60,6 +74,13 @@ struct MensajeNIPC {
 struct Partida {
 	struct Jugador jugadorOrigen;
 	struct Jugador jugadorDestino;
+	ESTADO_PARTIDA estado;
+};
+
+// Estructura que representa la partida
+struct Resultado_Ataque {
+	RESULTADO resultado;
+	char coordenadas[10];
 };
 
 #endif /* ESTRUCTURAS_H_ */
