@@ -17,7 +17,7 @@ ssize_t readLine(int fd, void *buffer, int n);
 
 int inicializarJugador(struct Jugador nuevoJugador);
 
-struct Jugador buscarJugador(int fdJugador);
+int buscarJugador(int fdJugador);
 
 struct MensajeNIPC armarListaJugadoresDisponibles();
 
@@ -339,14 +339,16 @@ struct MensajeNIPC armarListaJugadoresDisponibles(int fd) {
 	return mensaje;
 }
 
-struct Jugador buscarJugador(int fdJugador) {
+int buscarJugador(int fdJugador) {
 
 	int i;
 
 	for (i = 0; i < MAXJUG; i++) {
 		if (jugadores[i].clientfd == fdJugador)
-			return jugadores[i];
+			return i;
 	}
+
+	return -1;
 }
 
 int eligeJugador(struct MensajeNIPC * mensajeJugador) {
@@ -354,33 +356,32 @@ int eligeJugador(struct MensajeNIPC * mensajeJugador) {
 	int s;
 
 	// Empieza partida
-
 	pthread_mutex_lock(&mutex_init_partido);
 
-	struct Jugador jugadorOrigen = buscarJugador(mensajeJugador->jugadorOrigen.clientfd);
+	int jug_orig_i = buscarJugador(mensajeJugador->jugadorOrigen.clientfd);
 
-	struct Jugador jugadorDest = buscarJugador(mensajeJugador->jugadorDestino.clientfd);
+	int jug_dest_i = buscarJugador(mensajeJugador->jugadorDestino.clientfd);
 
-	if(jugadorOrigen.estado != Disponible || jugadorDest.estado != Disponible) {
+	if(jugadores[jug_orig_i].estado != Disponible || jugadores[jug_dest_i].estado != Disponible) {
 		printf("Los jugadores no estan disponibles para empezar un partido.\n");
 		pthread_mutex_unlock(&mutex_init_partido);
 		return -1;
 	}
 
-	printf("Empieza partida entre %s y %s.\n", jugadorOrigen.nombre, jugadorDest.nombre);
+	printf("Empieza partida entre %s y %s.\n", jugadores[jug_orig_i].nombre, jugadores[jug_dest_i].nombre);
 
-	jugadorOrigen.estado = Jugando;
-	jugadorDest.estado = Jugando;
+	jugadores[jug_orig_i].estado = Jugando;
+	jugadores[jug_dest_i].estado = Jugando;
 
 	pthread_mutex_unlock(&mutex_init_partido);
 
 	struct MensajeNIPC mensajeConfirmacion;
 	mensajeConfirmacion.tipo = Confirma_partida;
-	mensajeConfirmacion.jugadorOrigen = jugadorOrigen;
-	mensajeConfirmacion.jugadorDestino = jugadorDest;
+	mensajeConfirmacion.jugadorOrigen = jugadores[jug_orig_i];
+	mensajeConfirmacion.jugadorDestino = jugadores[jug_dest_i];
 
 	// Le envio al jugador origen una confirmacion de que empieza la partida
-	s = send(jugadorOrigen.clientfd, &mensajeConfirmacion, sizeof(struct MensajeNIPC), 0);
+	s = send(jugadores[jug_orig_i].clientfd, &mensajeConfirmacion, sizeof(struct MensajeNIPC), 0);
 
 	if (s == -1) {
 		perror("Error al enviar confirmacion.\n");
@@ -388,7 +389,7 @@ int eligeJugador(struct MensajeNIPC * mensajeJugador) {
 	}
 
 	// Le envio al jugador destino una confirmacion de que va a empezar la partida
-	s = send(jugadorDest.clientfd, &mensajeConfirmacion, sizeof(struct MensajeNIPC), 0);
+	s = send(jugadores[jug_dest_i].clientfd, &mensajeConfirmacion, sizeof(struct MensajeNIPC), 0);
 
 	if (s == -1) {
 		perror("Error al el jugador registrado.\n");
