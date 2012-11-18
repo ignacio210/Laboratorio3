@@ -431,18 +431,33 @@ void * leerJugada(void * args) {
 
 	char pos[10];
 
-	int s;
+	int s, coords_invalidas = 0;
 
 	while (1) {
 
 		print_maps();
 
+		if(coords_invalidas) {
+			printf("Las coordenadas ingresadas no son validas.\n");
+		}
+
 		printf("enter value\n");
-		//scanf("%d", &pos);
 		gets(pos);
 
-		//TODO: Validacion
 		system("clear");
+
+		//Validacion coordenadas
+		if(strlen(pos) != 2) {
+			coords_invalidas = 1;
+			continue;
+		}
+
+		if(pos[0] < '0' || pos[0] > '9' || pos[1] < '0' || pos[1] > '9') {
+			coords_invalidas = 1;
+			continue;
+		}
+
+		coords_invalidas = 0;
 
 		// Enviar jugada
 		struct MensajeNIPC mensajeJugada;
@@ -484,9 +499,6 @@ void * escucharServidor(void * args) {
 
 		if (mensaje->tipo == Recibe_Ataque) {
 
-			printf("Se recibio un ataque a coordenadas %s... ",
-					mensaje->payload);
-
 			int i, hundido = 0, repetido = 0;
 
 			// Se fija si las coordenadas del ataque coinciden con alguna posicion
@@ -506,13 +518,13 @@ void * escucharServidor(void * args) {
 			}
 
 			if (hundido && !repetido) {
-				printf("Hundido.\n");
 
 				// Guardo la posicion del barco undido e incremento la cantidad de undidos
 
 				strcpy(posiciones_barcos_hundidos[cantidad_barcos_hundidos], mensaje->payload);
 				cantidad_barcos_hundidos++;
 
+				// Actualizo la interfaz grafica
 				int x, y;
 
 				x = mensaje->payload[0] - VALUE;
@@ -520,29 +532,31 @@ void * escucharServidor(void * args) {
 
 				//printf("%d %d.\n", x, y);
 
+				// Cambio la 'X' por '.'
 				my_matrix[x][y] = 'a';
 
+				system("clear");
+
 				print_maps();
+
+				printf("Se recibio un ataque a coordenadas %s... Hundido.\n",mensaje->payload);
+
+				printf("enter value\n");
 
 				if(cantidad_barcos_hundidos == cantidad_barcos) {
 					// Logica de fin de la partida
 				}
 			}
 			else {
-				printf("Agua.\n");
+
+				system("clear");
+
+				print_maps();
+
+				printf("Se recibio un ataque a coordenadas %s... Agua.\n",mensaje->payload);
 			}
 
 		}
-
-		//printf("Recibo jugada desde el server, proviniente del jugador %d.\n", mensaje->jugadorOrigen.clientfd);
-
-		/*if (mensaje->tipo == Recibe_Ataque) {
-		 int pos;
-
-		 memcpy(&pos, mensaje->payload, mensaje->payload_length);
-
-		 printf("Recibido ataque en %d\n", pos);
-		 }*/
 
 	}
 
