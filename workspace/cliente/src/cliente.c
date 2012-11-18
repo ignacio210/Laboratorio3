@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <string.h>
 #include <pthread.h>
+#include <signal.h>
 #include "estructuras.h"
 
 #define PORT_TIME       13
@@ -47,6 +48,8 @@ int iniciarPartida(struct Partida partida);
 int elegirJugador();
 
 int handler_ataque(struct MensajeNIPC * mensaje);
+
+void handler_seniales(int s);
 
 // Variables para interfaz grafica
 char my_matrix[NUMBER_X][NUMBER_Y];
@@ -91,6 +94,9 @@ int main(int argc, char * argv[]) {
 		puts("Usage ./cliente [nombre] [pos1] ...");
 		return EXIT_FAILURE;
 	}
+
+	signal(SIGKILL, handler_seniales);
+	signal(SIGTERM, handler_seniales);
 
 	cantidad_barcos_hundidos = 0;
 
@@ -478,6 +484,15 @@ int desconectar() {
 	}
 
 	return 0;
+}
+
+void handler_seniales(int s) {
+
+	desconectar();
+
+	liberar_recursos();
+
+	kill(getpid(), SIGKILL);
 }
 
 void liberar_recursos() {

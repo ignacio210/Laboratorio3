@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
 #include "estructuras.h"
 
 // Firmas de funciones
@@ -27,6 +28,11 @@ int procesarJugada(struct MensajeNIPC * mensajeJugada);
 
 void * handler_jugador(void * args);
 
+void handler_seniales(int s);
+
+// File descriptor del socket del servidor
+int sockfd;
+
 int jugadorCount;
 struct Jugador jugadores[MAXJUG];
 
@@ -40,9 +46,11 @@ pthread_mutex_t mutex_fin_jugador = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char argv[]) {
 
-	int sockfd;
 	struct sockaddr_in self;
 	char buffer[MAXBUF];
+
+	signal(SIGKILL, handler_seniales);
+	signal(SIGTERM, handler_seniales);
 
 	// Se asume que el numero de jugadores maximo es chico, sino deberia gestionarse dinamicamente el tamano del array
 	bzero(buffer, MAXBUF);
@@ -490,6 +498,15 @@ int desconecta_jugador(struct MensajeNIPC * mensaje) {
 
 	// Elimino el thread para el cliente (detached)
 	pthread_exit(NULL);
+}
+
+
+void handler_seniales(int s) {
+
+	// Cierro el socket del server.
+	close(sockfd);
+
+	kill(getpid(), SIGKILL);
 }
 
 int leerConfiguracion() {
