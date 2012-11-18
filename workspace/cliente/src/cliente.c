@@ -484,22 +484,34 @@ void * leerJugada(void * args) {
 
 	char pos[10];
 
-	int s, coords_invalidas = 0;
+	int s, coords_invalidas = 0, inicio = 1;
+
+	bzero(pos, 10);
 
 	while (partida.estado == EnProgreso) {
 
 		print_maps();
 
+		// Muestro mensaje de validacion
 		if (coords_invalidas) {
-			printf("Las coordenadas ingresadas no son validas.\n");
+
+			// Si es el inicio de la partida no muestro ningun mensaje
+			if(inicio) {
+				inicio = 0;
+			}
+			else {
+				printf("Las coordenadas ingresadas no son validas.\n");
+			}
 		}
 
+		// Mustro mensaje segun si el jugador tiene el turno o no
 		if (turno) {
 			printf("Ingrese coordenadas:\n");
 		} else {
 			printf("Esperando jugada del oponente...\n");
 		}
 
+		// Obtengo input (bloqueo)
 		gets(pos);
 
 		system("clear");
