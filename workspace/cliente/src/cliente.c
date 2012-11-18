@@ -64,6 +64,9 @@ char posiciones_barcos_hundidos[100][10];
 
 pthread_t t1, t2;
 
+// Mutex para evitar que los 2 threads actualizen la pantalla al mismo tiempo
+pthread_mutex_t mutex_dibujar_pantalla = PTHREAD_MUTEX_INITIALIZER;
+
 // Estructura jugador registrada en el server
 struct Jugador jugador;
 
@@ -71,7 +74,7 @@ struct Jugador jugador;
 struct Partida partida;
 
 // Flag que va a indicar si es turno del jugador o del rival
-int turno;
+int turno = 0;
 
 // Lista de jugadores disponibles (se va actualizando)
 struct Jugador jugadoresDisponibles[MAXJUG];
@@ -348,9 +351,6 @@ int mostrar_menu() {
 
 			printf("%s\n", messageBuffer);
 
-			// Eligio un jugador, por lo tanto sera el que inicia la partida
-			turno = 1;
-
 			if (elegirJugador() == -1) {
 				perror("Error al elegir jugador.\n");
 				liberar_recursos();
@@ -400,9 +400,6 @@ int esperarPartida() {
 
 	partida.estado = EnProgreso;
 
-	// Como la partida la inicio el otro jugador, sera el que empieza
-	turno = 0;
-
 	iniciarPartida(partida);
 
 	return 0;
@@ -433,6 +430,11 @@ void print_map_line(char value[]) {
 }
 
 void print_maps() {
+
+	pthread_mutex_lock(&mutex_dibujar_pantalla);
+
+	system("clear");
+
 	printf("\t\t My map \t\t\t\t\t Remote Map\t\n");
 	print_header();
 	printf("\t");
@@ -448,6 +450,8 @@ void print_maps() {
 	printf("\t");
 	print_header();
 	printf("\n");
+
+	pthread_mutex_unlock(&mutex_dibujar_pantalla);
 }
 
 void print_header() {
@@ -534,6 +538,9 @@ void * leerJugada(void * args) {
 
 		coords_invalidas = 0;
 
+		// Fin del turno, debera esperar a que el server lo habilite para jugar de nuevo
+		turno = 0;
+
 		// Enviar jugada
 		struct MensajeNIPC mensajeJugada;
 		mensajeJugada.tipo = Jugada;
@@ -592,6 +599,19 @@ void * escucharServidor(void * args) {
 			partida.estado = Terminada;
 
 			break;
+
+		case Turno:
+
+			printf("Mensaje turno.\n");
+			turno = 1;
+
+			system("clear");
+
+			print_maps();
+
+			printf("Ingrese coordenadas:\n");
+
+			break;
 		}
 	}
 }
@@ -602,9 +622,6 @@ int handler_ataque(struct MensajeNIPC * mensaje) {
 
 	// Mensaje que voy a enviar informando el resultado
 	struct Resultado_Ataque resultado_ataq;
-
-	// Cambio el turno, si estaba en 0 a 1 y viceversa
-	turno = !turno;
 
 	// Se fija si las coordenadas del ataque coinciden con alguna posicion
 	for (i = 0; i < cantidad_barcos; i++) {
@@ -738,9 +755,6 @@ int handler_respuesta(struct MensajeNIPC * mensaje) {
 	system("clear");
 
 	print_maps();
-
-	// Cambio el turno, si estaba en 0 a 1 y viceversa
-	turno = !turno;
 
 	if (resultado.resultado == Agua) {
 		printf("Resultado de ataque a coordenadas %s: Agua.\n",

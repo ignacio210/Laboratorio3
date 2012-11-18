@@ -396,6 +396,18 @@ int eligeJugador(struct MensajeNIPC * mensajeJugador) {
 		return -1;
 	}
 
+	// Le envio al jugador origen un mensaje indicandole que es su turno para jugar
+
+	struct MensajeNIPC mensajeTurno;
+	mensajeTurno.tipo = Turno;
+
+	s = send(jugadores[jug_orig_i].clientfd, &mensajeTurno, sizeof(struct MensajeNIPC), 0);
+
+	if (s == -1) {
+		perror("Error al el jugador registrado.\n");
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -412,6 +424,17 @@ int procesarJugada(struct MensajeNIPC * mensajeJugada) {
 			mensajeJugada->jugadorOrigen.clientfd, mensajeJugada->jugadorDestino.clientfd);
 
 	s = send(mensajeJugada->jugadorDestino.clientfd, mensajeJugada, sizeof(struct MensajeNIPC), 0);
+
+	if (s == -1) {
+		perror("Error al enviar el mensaje.\n");
+		return -1;
+	}
+
+	// Le envio un mensaje al jugador que fue atacado para indicarle que es su turno para jugar.
+	struct MensajeNIPC mensajeTurno;
+	mensajeTurno.tipo = Turno;
+
+	s = send(mensajeJugada->jugadorDestino.clientfd, &mensajeTurno, sizeof(struct MensajeNIPC), 0);
 
 	if (s == -1) {
 		perror("Error al enviar el mensaje.\n");
