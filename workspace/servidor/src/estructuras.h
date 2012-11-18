@@ -18,7 +18,8 @@ typedef enum {
 		Confirma_partida,
 		Recibe_Ataque,
 		Resultado,
-		Fin_partida
+		Fin_partida,
+		Desconectar
 		} TIPO_MENSAJE;
 
 // Estados del jugador

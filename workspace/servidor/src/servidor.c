@@ -97,8 +97,16 @@ int main(int argc, char argv[]) {
 		nuevoJugador.clientfd = clientfd;
 		nuevoJugador.client_addr = client_addr; //TODO: Ver si esto se puede mejorar y solo pasarle el clientfd
 
-		int result = pthread_create(&thread_ids[jugadorCount], NULL,
-				handler_jugador, &nuevoJugador);
+		pthread_attr_t attr;
+
+		pthread_attr_init(&attr);
+		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+		int result = pthread_create(&thread_ids[jugadorCount], &attr, handler_jugador, &nuevoJugador);
+
+		// pthread_exit en funcion thread
+
+		//int result = pthread_create(&thread_ids[jugadorCount], NULL, handler_jugador, &nuevoJugador);
 
 		if (result != 0) {
 			perror("Error en la creacion del thread\n");
@@ -392,6 +400,11 @@ void * handler_jugador(void * args) {
 			}
 
 			break;
+
+		case Desconectar:
+
+			desconecta_jugador(mensajeJugador);
+			break;
 		}
 	}
 }
@@ -469,3 +482,47 @@ ssize_t readLine(int fd, void *buffer, int n) {
 	return totRead;
 }
 
+int desconecta_jugador(struct MensajeNIPC * mensaje) {
+
+	int i, j;
+	struct Jugador jugadores_actualizados[MAXJUG];
+
+	printf("El jugador %s, se desconecto.\n", mensaje->jugadorOrigen.nombre);
+
+	// Actualizo el vector de jugadores eliminando al que se desconecta
+
+	// j va a ser el indice en el vector de jugadores actualizados
+	j = 0;
+
+	// recorro el vector de jugadores actual
+	for (i = 0; i < jugadorCount; i++) {
+
+		// Si el jugador no es el que se esta desconectando lo mantengo
+		if(jugadores[i].clientfd != mensaje->jugadorOrigen.clientfd) {
+
+			jugadores_actualizados[j] = jugadores[i];
+			j++;
+		}
+	}
+
+	// Reseteo los valores del vector jugadores
+	struct Jugador jugadorVacio;
+
+	for (i = 0; i < jugadorCount; i++) {
+		jugadores[i] = jugadorVacio;
+	}
+
+	// Decremento la cantidad de jugadores conectados
+	jugadorCount--;
+
+	// Copio los valores nuevos
+	for (i = 0; i < jugadorCount; ++i) {
+		jugadores[i] = jugadores_actualizados[i];
+	}
+
+	// Cierro el socket cliente
+	close(mensaje->jugadorOrigen.clientfd);
+
+	// Elimino el thread para el cliente (detached)
+	pthread_exit(NULL);
+}

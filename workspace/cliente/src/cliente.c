@@ -93,7 +93,7 @@ int main(int argc, char * argv[]) {
 
 	//char * posiciones[cantidad_barcos];
 
-	if(validarPosiciones(argv, posiciones_barcos) == -1) {
+	if (validarPosiciones(argv, posiciones_barcos) == -1) {
 		return EXIT_FAILURE;
 	}
 
@@ -146,94 +146,11 @@ int main(int argc, char * argv[]) {
 	printf("Se ha registrado en el servidor como el jugador %s.\n",
 			jugador.nombre);
 
-	// Dar la opcion de elegir un jugador de la lista o esperar a que alguien lo elija
-	printf("Menu:\n\n");
-
-	printf("\t1. Elegir un contrincante.\n");
-	printf("\t2. Esperar a ser elegido.\n\n");
-
-	int opcion;
-
-	printf("Ingrese opcion: ");
-	scanf("%d", &opcion);
-
-	if (opcion < 1 || opcion > 2) {
-		printf("La opcion ingresada no es valida.\n");
+	if (mostrar_menu() == -1) {
 		return EXIT_FAILURE;
 	}
 
-	if (opcion == 1) {
-
-		// Pido la lista de jugadores
-		struct MensajeNIPC mensajeLista;
-		mensajeLista.tipo = Lista_Jugadores;
-
-		s = send(sockfd, &mensajeLista, sizeof(struct MensajeNIPC), 0);
-
-		if (s == -1) {
-			perror("Error al enviar el mensaje.\n");
-			return EXIT_FAILURE;
-		}
-
-		// Recibo lista de jugadores
-		r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
-
-		TIPO_MENSAJE tipo;
-
-		memcpy(&tipo, buffer, sizeof(TIPO_MENSAJE));
-
-		int payloadLength;
-
-		memcpy(&payloadLength, buffer + sizeof(TIPO_MENSAJE), sizeof(int));
-
-		// Valido que la lista no este vacia, si esta vacia lo pongo a esperar
-		// Si la lista esta vacia el fd del primer jugador va a ser 0
-		if (payloadLength == 0) {
-
-			printf("No hay jugadores disponibles en este momento.\n");
-			esperarPartida();
-
-		} else {
-
-			int i = 0;
-
-			char messageBuffer[MAXBUF];
-
-			memcpy(jugadoresDisponibles, buffer + sizeof(TIPO_MENSAJE) + sizeof(int), payloadLength);
-
-			strcat(messageBuffer, "Lista de jugadores disponibles:\n\n");
-
-			while (jugadoresDisponibles[i].clientfd != 0) {
-
-				char num[5];
-				sprintf(num, "%d", i + 1);
-				strcat(messageBuffer, num);
-				strcat(messageBuffer, ". ");
-				strcat(messageBuffer, jugadoresDisponibles[i].nombre);
-				strcat(messageBuffer, "(");
-				strcat(messageBuffer, jugadoresDisponibles[i].ip);
-				strcat(messageBuffer, ")\n");
-
-				i++;
-			}
-
-			jugadoresDisponiblesCont = i;
-
-			printf("%s\n", messageBuffer);
-
-			if (elegirJugador() == -1) {
-				perror("Error al elegir jugador.\n");
-				liberar_recursos();
-				return EXIT_FAILURE;
-			}
-		}
-	} else {
-
-		if (esperarPartida() == -1) {
-			printf("Error iniciando la partida.\n");
-			return EXIT_FAILURE;
-		}
-	}
+	desconectar();
 
 	liberar_recursos();
 	return EXIT_SUCCESS;
@@ -345,6 +262,106 @@ int validarPosiciones(char ** argv, char ** posiciones) {
 	return 0;
 }
 
+int mostrar_menu() {
+
+	int s, r;
+	char buffer[MAXBUF];
+
+	bzero(buffer, MAXBUF);
+
+	// Dar la opcion de elegir un jugador de la lista o esperar a que alguien lo elija
+	printf("Menu:\n\n");
+
+	printf("\t1. Elegir un contrincante.\n");
+	printf("\t2. Esperar a ser elegido.\n\n");
+
+	int opcion;
+
+	printf("Ingrese opcion: ");
+	scanf("%d", &opcion);
+
+	if (opcion < 1 || opcion > 2) {
+		printf("La opcion ingresada no es valida.\n");
+		return -1;
+	}
+
+	if (opcion == 1) {
+
+		// Pido la lista de jugadores
+		struct MensajeNIPC mensajeLista;
+		mensajeLista.tipo = Lista_Jugadores;
+
+		s = send(sockfd, &mensajeLista, sizeof(struct MensajeNIPC), 0);
+
+		if (s == -1) {
+			perror("Error al enviar el mensaje.\n");
+			return -1;
+		}
+
+		// Recibo lista de jugadores
+		r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
+
+		TIPO_MENSAJE tipo;
+
+		memcpy(&tipo, buffer, sizeof(TIPO_MENSAJE));
+
+		int payloadLength;
+
+		memcpy(&payloadLength, buffer + sizeof(TIPO_MENSAJE), sizeof(int));
+
+		// Valido que la lista no este vacia, si esta vacia lo pongo a esperar
+		// Si la lista esta vacia el fd del primer jugador va a ser 0
+		if (payloadLength == 0) {
+
+			printf("No hay jugadores disponibles en este momento.\n");
+			esperarPartida();
+
+		} else {
+
+			int i = 0;
+
+			char messageBuffer[MAXBUF];
+
+			memcpy(jugadoresDisponibles,
+					buffer + sizeof(TIPO_MENSAJE) + sizeof(int), payloadLength);
+
+			strcat(messageBuffer, "Lista de jugadores disponibles:\n\n");
+
+			while (jugadoresDisponibles[i].clientfd != 0) {
+
+				char num[5];
+				sprintf(num, "%d", i + 1);
+				strcat(messageBuffer, num);
+				strcat(messageBuffer, ". ");
+				strcat(messageBuffer, jugadoresDisponibles[i].nombre);
+				strcat(messageBuffer, "(");
+				strcat(messageBuffer, jugadoresDisponibles[i].ip);
+				strcat(messageBuffer, ")\n");
+
+				i++;
+			}
+
+			jugadoresDisponiblesCont = i;
+
+			printf("%s\n", messageBuffer);
+
+			if (elegirJugador() == -1) {
+				perror("Error al elegir jugador.\n");
+				liberar_recursos();
+				return -1;
+			}
+		}
+	} else {
+
+		if (esperarPartida() == -1) {
+			printf("Error iniciando la partida.\n");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 int esperarPartida() {
 
 	int r;
@@ -429,6 +446,24 @@ void print_header() {
 		printf("-");
 	}
 	printf("+");
+}
+
+int desconectar() {
+
+	int s;
+	struct MensajeNIPC msg_desconectar;
+
+	msg_desconectar.tipo = Desconectar;
+	msg_desconectar.jugadorOrigen = jugador;
+
+	s = send(sockfd, &msg_desconectar, sizeof(struct MensajeNIPC), 0);
+
+	if (s == -1) {
+		perror("Error al enviar el mensaje.\n");
+		return -1;
+	}
+
+	return 0;
 }
 
 void liberar_recursos() {
@@ -622,12 +657,14 @@ int handler_ataque(struct MensajeNIPC * mensaje) {
 
 		// Envio el jugador ganador
 
-		memcpy(mensaje_fin_partida.payload, &partida.jugadorDestino, sizeof(struct Jugador));
+		memcpy(mensaje_fin_partida.payload, &partida.jugadorDestino,
+				sizeof(struct Jugador));
 
 		mensaje_fin_partida.jugadorOrigen = jugador;
 		mensaje_fin_partida.jugadorDestino = partida.jugadorDestino;
 
-		int s = send(sockfd, &mensaje_fin_partida, sizeof(struct MensajeNIPC), 0);
+		int s = send(sockfd, &mensaje_fin_partida, sizeof(struct MensajeNIPC),
+				0);
 
 		if (s == -1) {
 			perror("Error al enviar el mensaje.\n");
@@ -721,11 +758,10 @@ int iniciarPartida(struct Partida partida) {
 	}
 
 	// bloqueo hasta que ambos threads terminen
-	pthread_join(t2, NULL);
-	pthread_join(t1, NULL);
+	pthread_join(t2, NULL );
+	pthread_join(t1, NULL );
 
 	// Termino la partida
-
 	return 0;
 }
 
