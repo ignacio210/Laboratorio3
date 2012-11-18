@@ -184,12 +184,9 @@ int main(int argc, char * argv[]) {
 
 		memcpy(&payloadLength, buffer + sizeof(TIPO_MENSAJE), sizeof(int));
 
-		memcpy(jugadoresDisponibles,
-				buffer + sizeof(TIPO_MENSAJE) + sizeof(int), payloadLength);
-
 		// Valido que la lista no este vacia, si esta vacia lo pongo a esperar
 		// Si la lista esta vacia el fd del primer jugador va a ser 0
-		if (jugadoresDisponibles[0].clientfd == 0) {
+		if (payloadLength == 0) {
 
 			printf("No hay jugadores disponibles en este momento.\n");
 			esperarPartida();
@@ -199,6 +196,8 @@ int main(int argc, char * argv[]) {
 			int i = 0;
 
 			char messageBuffer[MAXBUF];
+
+			memcpy(jugadoresDisponibles, buffer + sizeof(TIPO_MENSAJE) + sizeof(int), payloadLength);
 
 			strcat(messageBuffer, "Lista de jugadores disponibles:\n\n");
 

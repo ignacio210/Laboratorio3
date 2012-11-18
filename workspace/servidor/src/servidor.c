@@ -192,8 +192,10 @@ struct MensajeNIPC armarListaJugadoresDisponibles(int fd) {
 	struct Jugador jugadores_disponibles[MAXJUG];
 
 	struct MensajeNIPC mensaje;
+	mensaje.tipo = Lista_Jugadores;
+	mensaje.payload_length = 0;
 
-// Este buffer va a ser el payload del mensaje
+	// Este buffer va a ser el payload del mensaje
 	char buffer[MAXBUF];
 
 	bzero(buffer, MAXBUF);
@@ -208,12 +210,12 @@ struct MensajeNIPC armarListaJugadoresDisponibles(int fd) {
 		}
 	}
 
-// Serializo la lista de jugadores disponibles
-	memcpy(buffer, jugadores_disponibles, sizeof(jugadores_disponibles));
-
-	mensaje.tipo = Lista_Jugadores;
-	mensaje.payload_length = sizeof(jugadores_disponibles);
-	memcpy(mensaje.payload, buffer, sizeof(buffer));
+	if (jugadores_disp_count > 0) {
+		// Serializo la lista de jugadores disponibles
+		memcpy(mensaje.payload, jugadores_disponibles, sizeof(jugadores_disponibles));
+		mensaje.payload_length = sizeof(jugadores_disponibles);
+		//memcpy(mensaje.payload, buffer, sizeof(buffer));
+	}
 
 	return mensaje;
 }
@@ -317,6 +319,9 @@ void * handler_jugador(void * args) {
 	jugadorCount++;
 
 	char buffer[MAXBUF];
+
+	bzero(buffer, MAXBUF);
+
 	TIPO_MENSAJE tipo;
 
 	while (1) {
@@ -358,7 +363,8 @@ void * handler_jugador(void * args) {
 		case Resultado:
 
 			// Reenvio el mensaje al jugador correspondiente
-			s = send(mensajeJugador->jugadorDestino.clientfd, mensajeJugador, sizeof(struct MensajeNIPC), 0);
+			s = send(mensajeJugador->jugadorDestino.clientfd, mensajeJugador,
+					sizeof(struct MensajeNIPC), 0);
 
 			if (s == -1) {
 				perror("Error al enviar el mensaje de resultado.\n");
@@ -369,14 +375,16 @@ void * handler_jugador(void * args) {
 		case Fin_partida:
 
 			// Envio mensaje de finalizacion a los 2 jugadores
-			s = send(mensajeJugador->jugadorDestino.clientfd, mensajeJugador, sizeof(struct MensajeNIPC), 0);
+			s = send(mensajeJugador->jugadorDestino.clientfd, mensajeJugador,
+					sizeof(struct MensajeNIPC), 0);
 
 			if (s == -1) {
 				perror("Error al enviar el mensaje de resultado.\n");
 				abort();
 			}
 
-			s = send(mensajeJugador->jugadorOrigen.clientfd, mensajeJugador, sizeof(struct MensajeNIPC), 0);
+			s = send(mensajeJugador->jugadorOrigen.clientfd, mensajeJugador,
+					sizeof(struct MensajeNIPC), 0);
 
 			if (s == -1) {
 				perror("Error al enviar el mensaje de resultado.\n");

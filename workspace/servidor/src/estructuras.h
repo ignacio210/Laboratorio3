@@ -5,7 +5,8 @@
 #define CONTENIDO_LEN 256 // Longitud maxima para el campo contenido de los mensajes
 
 #define MAXJUG 16
-#define MAXBUF 2048
+#define MAXBUF 4096
+#define BIGBUF 4096
 
 // Tipos de mensajes que pueden ser intercambiados entre el servidor y los clientes.
 typedef enum {
