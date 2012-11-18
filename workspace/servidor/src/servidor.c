@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <pthread.h> // gcc miThread.c -o miThread -l pthread
+#include <pthread.h>
 #include "estructuras.h"
 
 // Firmas de funciones
@@ -32,6 +32,11 @@ struct Jugador jugadores[MAXJUG];
 
 // voy a tener un thread por cliente
 pthread_t thread_ids[MAXJUG];
+
+// Declaracion mutex
+pthread_mutex_t mutex_init_jugador = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_init_partido = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_fin_jugador = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char argv[]) {
 
@@ -95,26 +100,22 @@ int main(int argc, char argv[]) {
 		struct Jugador nuevoJugador;
 
 		nuevoJugador.clientfd = clientfd;
-		nuevoJugador.client_addr = client_addr; //TODO: Ver si esto se puede mejorar y solo pasarle el clientfd
+		nuevoJugador.client_addr = client_addr;
 
+		// Inicializo un thread detached para que atienda al cliente, cuando el cliente se desconecta
+		// el thread libera sus recursos
 		pthread_attr_t attr;
 
 		pthread_attr_init(&attr);
 		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-		int result = pthread_create(&thread_ids[jugadorCount], &attr, handler_jugador, &nuevoJugador);
-
-		// pthread_exit en funcion thread
-
-		//int result = pthread_create(&thread_ids[jugadorCount], NULL, handler_jugador, &nuevoJugador);
+		int result = pthread_create(&thread_ids[jugadorCount], &attr,
+				handler_jugador, &nuevoJugador);
 
 		if (result != 0) {
 			perror("Error en la creacion del thread\n");
 			return EXIT_FAILURE;
 		}
-
-		// TODO: ver cuando se cierra el clientfd
-		//close(clientfd);
 	}
 
 	// Cierro el socket
@@ -122,14 +123,128 @@ int main(int argc, char argv[]) {
 	return EXIT_SUCCESS;
 }
 
+// Funcion principal que ejecuta el thread para cada jugador que se conecta
+void * handler_jugador(void * args) {
+
+	int r, s;
+	char buffer[MAXBUF];
+
+	// Al crear el thread se le pasa una estructura de tipo jugador
+	struct Jugador jugador = (*(struct Jugador *) args);
+	int fdJugador = jugador.clientfd;
+
+	// Muestro informacion del cliente conectado
+	printf("%s:%d conectado\n", inet_ntoa(jugador.client_addr.sin_addr),
+			ntohs(jugador.client_addr.sin_port));
+
+	// Protejo la inicializacion del jugador con un mutex
+	pthread_mutex_lock(&mutex_init_jugador);
+
+	// Se valida la cantidad de jugadores, se cargan los datos del jugador y se lo guarda en el vector
+	// de jugadores
+	if (inicializarJugador(jugador) == -1) {
+		printf("Error al inicializar Jugador.\n");
+		pthread_mutex_unlock(&mutex_init_jugador);
+		pthread_exit(NULL);
+	}
+
+	// Se incrementa la cantidad de jugadores conectados
+	jugadorCount++;
+
+	pthread_mutex_unlock(&mutex_init_jugador);
+
+	// inicializo buffer
+	bzero(buffer, MAXBUF);
+
+	// Bucle principal del thread, va a escuchar mensajes del cliente y procesarlos
+	while (1) {
+
+		r = recv(fdJugador, buffer, sizeof(struct MensajeNIPC), 0);
+
+		if (r == -1) {
+			perror("Error al recibir el mensaje.\n");
+			pthread_exit(NULL);
+		}
+
+		struct MensajeNIPC * mensajeJugador = (struct MensajeNIPC *) buffer;
+
+		switch (mensajeJugador->tipo) {
+
+		// Se solicita la lista de jugadores
+		case Lista_Jugadores:
+
+			if (enviarListaJugadoresDisponibles(fdJugador) == -1) {
+				printf("Error al enviar lista de jugadores.\n");
+				pthread_exit(NULL);
+			}
+
+			break;
+
+		// Mensaje que llega cuando un jugador elige un contrincante
+		case Elige_Jugador:
+
+			eligeJugador(mensajeJugador);
+			break;
+
+		// Mensaje que representa una jugada
+		case Jugada:
+
+			if (procesarJugada(mensajeJugador) == -1) {
+				printf("Error al procesar la jugada.\n");
+				pthread_exit(NULL);
+			}
+			break;
+
+		// Mensaje que representa el resultado de una jugada (hundido-agua)
+		case Resultado:
+
+			// Reenvio el mensaje al jugador correspondiente
+			s = send(mensajeJugador->jugadorDestino.clientfd, mensajeJugador,
+					sizeof(struct MensajeNIPC), 0);
+
+			if (s == -1) {
+				perror("Error al enviar el mensaje de resultado.\n");
+				pthread_exit(NULL);
+			}
+
+			break;
+		case Fin_partida:
+
+			// Envio mensaje de finalizacion a los 2 jugadores
+			s = send(mensajeJugador->jugadorDestino.clientfd, mensajeJugador, sizeof(struct MensajeNIPC), 0);
+
+			if (s == -1) {
+				perror("Error al enviar el mensaje de resultado.\n");
+				pthread_exit(NULL);
+			}
+
+			s = send(mensajeJugador->jugadorOrigen.clientfd, mensajeJugador, sizeof(struct MensajeNIPC), 0);
+
+			if (s == -1) {
+				perror("Error al enviar el mensaje de resultado.\n");
+				pthread_exit(NULL);
+			}
+
+			break;
+
+		// Mesaje que envian los cliente cuando se desconectan
+		case Desconectar:
+
+			// El servidor va a actualizar su lista de jugadores y libera sus recursos
+			desconecta_jugador(mensajeJugador);
+			break;
+		}
+	}
+}
+
+// Logica para inicializar el jugador en el server. Este metodo esta protegido por un mutex.
 int inicializarJugador(struct Jugador nuevoJugador) {
 
 	int r, s;
 	char buffer[MAXBUF];
 	struct Mensaje * mensaje;
 
-// Validacion maximo jugadores
-// TODO: Semaforo
+	// Validacion maximo jugadores
 	if (jugadorCount >= MAXJUG)
 		return -1;
 
@@ -154,9 +269,6 @@ int inicializarJugador(struct Jugador nuevoJugador) {
 	nuevoJugador.estado = Disponible;
 	strcpy(nuevoJugador.ip, inet_ntoa(nuevoJugador.client_addr.sin_addr));
 
-	// TODO: Aca abria que agregar un semaforo y antes validar que no se haya
-	// alterado el jugadorCount, posiblemente la secci'on critica sea casi todo
-	// el metodo
 	jugadores[jugadorCount] = nuevoJugador;
 
 	struct MensajeNIPC mensajeRegistro;
@@ -165,8 +277,7 @@ int inicializarJugador(struct Jugador nuevoJugador) {
 	mensajeRegistro.payload_length = sizeof(struct Jugador);
 	memcpy(mensajeRegistro.payload, &nuevoJugador, sizeof(struct Jugador));
 
-	s = send(nuevoJugador.clientfd, &mensajeRegistro,
-			sizeof(struct MensajeNIPC), 0);
+	s = send(nuevoJugador.clientfd, &mensajeRegistro, sizeof(struct MensajeNIPC), 0);
 
 	if (s == -1) {
 		perror("Error al el jugador registrado.\n");
@@ -178,11 +289,10 @@ int inicializarJugador(struct Jugador nuevoJugador) {
 
 int enviarListaJugadoresDisponibles(int fd) {
 
+	int bytesSent;
 	struct MensajeNIPC mensajeLista;
 
 	mensajeLista = armarListaJugadoresDisponibles(fd);
-
-	int bytesSent;
 
 	bytesSent = send(fd, &mensajeLista, sizeof(struct MensajeNIPC), 0);
 
@@ -208,6 +318,7 @@ struct MensajeNIPC armarListaJugadoresDisponibles(int fd) {
 
 	bzero(buffer, MAXBUF);
 
+	// Recorro el vector de jugadores y armo la lista
 	for (i = 0; i < jugadorCount; i++) {
 
 		if (jugadores[i].estado == Disponible && jugadores[i].clientfd != fd) {
@@ -219,10 +330,10 @@ struct MensajeNIPC armarListaJugadoresDisponibles(int fd) {
 	}
 
 	if (jugadores_disp_count > 0) {
+
 		// Serializo la lista de jugadores disponibles
 		memcpy(mensaje.payload, jugadores_disponibles, sizeof(jugadores_disponibles));
 		mensaje.payload_length = sizeof(jugadores_disponibles);
-		//memcpy(mensaje.payload, buffer, sizeof(buffer));
 	}
 
 	return mensaje;
@@ -240,23 +351,28 @@ struct Jugador buscarJugador(int fdJugador) {
 
 int eligeJugador(struct MensajeNIPC * mensajeJugador) {
 
-	int numeroJugador, s;
-
-	memcpy(&numeroJugador, mensajeJugador->payload,
-			mensajeJugador->payload_length);
+	int s;
 
 	// Empieza partida
-	struct Jugador jugadorOrigen = buscarJugador(
-			mensajeJugador->jugadorOrigen.clientfd);
 
-	struct Jugador jugadorDest = buscarJugador(
-			mensajeJugador->jugadorDestino.clientfd);
+	pthread_mutex_lock(&mutex_init_partido);
 
-	printf("Empieza partida entre %s y %s.\n", jugadorOrigen.nombre,
-			jugadorDest.nombre);
+	struct Jugador jugadorOrigen = buscarJugador(mensajeJugador->jugadorOrigen.clientfd);
+
+	struct Jugador jugadorDest = buscarJugador(mensajeJugador->jugadorDestino.clientfd);
+
+	if(jugadorOrigen.estado != Disponible || jugadorDest.estado != Disponible) {
+		printf("Los jugadores no estan disponibles para empezar un partido.\n");
+		pthread_mutex_unlock(&mutex_init_partido);
+		return -1;
+	}
+
+	printf("Empieza partida entre %s y %s.\n", jugadorOrigen.nombre, jugadorDest.nombre);
 
 	jugadorOrigen.estado = Jugando;
 	jugadorDest.estado = Jugando;
+
+	pthread_mutex_unlock(&mutex_init_partido);
 
 	struct MensajeNIPC mensajeConfirmacion;
 	mensajeConfirmacion.tipo = Confirma_partida;
@@ -264,8 +380,7 @@ int eligeJugador(struct MensajeNIPC * mensajeJugador) {
 	mensajeConfirmacion.jugadorDestino = jugadorDest;
 
 	// Le envio al jugador origen una confirmacion de que empieza la partida
-	s = send(jugadorOrigen.clientfd, &mensajeConfirmacion,
-			sizeof(struct MensajeNIPC), 0);
+	s = send(jugadorOrigen.clientfd, &mensajeConfirmacion, sizeof(struct MensajeNIPC), 0);
 
 	if (s == -1) {
 		perror("Error al enviar confirmacion.\n");
@@ -273,13 +388,14 @@ int eligeJugador(struct MensajeNIPC * mensajeJugador) {
 	}
 
 	// Le envio al jugador destino una confirmacion de que va a empezar la partida
-	s = send(jugadorDest.clientfd, &mensajeConfirmacion,
-			sizeof(struct MensajeNIPC), 0);
+	s = send(jugadorDest.clientfd, &mensajeConfirmacion, sizeof(struct MensajeNIPC), 0);
 
 	if (s == -1) {
 		perror("Error al el jugador registrado.\n");
 		return -1;
 	}
+
+	return 0;
 }
 
 int procesarJugada(struct MensajeNIPC * mensajeJugada) {
@@ -288,15 +404,13 @@ int procesarJugada(struct MensajeNIPC * mensajeJugada) {
 
 	// Envio jugada al jugador destino
 
-	// Le cambio el tipo al mensaje y lo reenvio
+	// Le cambio el tipo al mensaje y se lo reenvio al contrincante
 	mensajeJugada->tipo = Recibe_Ataque;
 
 	printf("Recibi una jugada de %d, se la envio a %d.\n",
-			mensajeJugada->jugadorOrigen.clientfd,
-			mensajeJugada->jugadorDestino.clientfd);
+			mensajeJugada->jugadorOrigen.clientfd, mensajeJugada->jugadorDestino.clientfd);
 
-	s = send(mensajeJugada->jugadorDestino.clientfd, mensajeJugada,
-			sizeof(struct MensajeNIPC), 0);
+	s = send(mensajeJugada->jugadorDestino.clientfd, mensajeJugada, sizeof(struct MensajeNIPC), 0);
 
 	if (s == -1) {
 		perror("Error al enviar el mensaje.\n");
@@ -304,109 +418,54 @@ int procesarJugada(struct MensajeNIPC * mensajeJugada) {
 	}
 }
 
-// Funcion principal que ejecuta el thread para cada jugador que se conecta
-void * handler_jugador(void * args) {
+int desconecta_jugador(struct MensajeNIPC * mensaje) {
 
-	int r, s;
+	int i, j;
+	struct Jugador jugadores_actualizados[MAXJUG];
 
-	// Al crear el thread se le pasa una estructura de tipo jugador
-	struct Jugador jugador = (*(struct Jugador *) args);
-	int fdJugador = jugador.clientfd;
+	printf("El jugador %s, se desconecto.\n", mensaje->jugadorOrigen.nombre);
 
-	// Muestro informacion del cliente conectado
-	printf("%s:%d conectado\n", inet_ntoa(jugador.client_addr.sin_addr),
-			ntohs(jugador.client_addr.sin_port));
+	// Actualizo el vector de jugadores eliminando al que se desconecta
 
-	// TODO: Ver de agregar semaforos
-	if (inicializarJugador(jugador) == -1) {
-		printf("Error al inicializar Jugador.\n");
-		abort();
-	}
+	// Protejo la actualizacion del vector con un mutex
+	pthread_mutex_lock(&mutex_fin_jugador);
 
-	// TODO: Agregar semaforo
-	jugadorCount++;
+	// j va a ser el indice en el vector de jugadores actualizados
+	j = 0;
 
-	char buffer[MAXBUF];
+	// recorro el vector de jugadores actual
+	for (i = 0; i < jugadorCount; i++) {
 
-	bzero(buffer, MAXBUF);
+		// Si el jugador no es el que se esta desconectando lo mantengo
+		if (jugadores[i].clientfd != mensaje->jugadorOrigen.clientfd) {
 
-	TIPO_MENSAJE tipo;
-
-	while (1) {
-
-		r = recv(fdJugador, buffer, sizeof(struct MensajeNIPC), 0);
-
-		if (r == -1) {
-			perror("Error al recibir el mensaje.\n");
-			abort();
-		}
-
-		struct MensajeNIPC * mensajeJugador = (struct MensajeNIPC *) buffer;
-
-		switch (mensajeJugador->tipo) {
-
-		case Elige_Jugador:
-
-			eligeJugador(mensajeJugador);
-
-			break;
-
-		case Lista_Jugadores:
-
-			if (enviarListaJugadoresDisponibles(fdJugador) == -1) {
-				printf("Error al enviar lista de jugadores.\n");
-				abort();
-			}
-
-			break;
-
-		case Juega:
-
-			if (procesarJugada(mensajeJugador) == -1) {
-				printf("Error al procesar la jugada.\n");
-				abort();
-			}
-			break;
-
-		case Resultado:
-
-			// Reenvio el mensaje al jugador correspondiente
-			s = send(mensajeJugador->jugadorDestino.clientfd, mensajeJugador,
-					sizeof(struct MensajeNIPC), 0);
-
-			if (s == -1) {
-				perror("Error al enviar el mensaje de resultado.\n");
-				abort();
-			}
-
-			break;
-		case Fin_partida:
-
-			// Envio mensaje de finalizacion a los 2 jugadores
-			s = send(mensajeJugador->jugadorDestino.clientfd, mensajeJugador,
-					sizeof(struct MensajeNIPC), 0);
-
-			if (s == -1) {
-				perror("Error al enviar el mensaje de resultado.\n");
-				abort();
-			}
-
-			s = send(mensajeJugador->jugadorOrigen.clientfd, mensajeJugador,
-					sizeof(struct MensajeNIPC), 0);
-
-			if (s == -1) {
-				perror("Error al enviar el mensaje de resultado.\n");
-				abort();
-			}
-
-			break;
-
-		case Desconectar:
-
-			desconecta_jugador(mensajeJugador);
-			break;
+			jugadores_actualizados[j] = jugadores[i];
+			j++;
 		}
 	}
+
+	// Reseteo los valores del vector jugadores
+	struct Jugador jugadorVacio;
+
+	for (i = 0; i < jugadorCount; i++) {
+		jugadores[i] = jugadorVacio;
+	}
+
+	// Decremento la cantidad de jugadores conectados
+	jugadorCount--;
+
+	// Copio los valores nuevos
+	for (i = 0; i < jugadorCount; ++i) {
+		jugadores[i] = jugadores_actualizados[i];
+	}
+
+	pthread_mutex_unlock(&mutex_fin_jugador);
+
+	// Cierro el socket cliente
+	close(mensaje->jugadorOrigen.clientfd);
+
+	// Elimino el thread para el cliente (detached)
+	pthread_exit(NULL);
 }
 
 int leerConfiguracion() {
@@ -435,9 +494,11 @@ int leerConfiguracion() {
 	return puerto;
 }
 
+
 ssize_t readLine(int fd, void *buffer, int n) {
-	ssize_t numRead; /* # of bytes fetched by last read() */
-	size_t totRead; /* Total bytes read so far */
+
+	ssize_t numRead;
+	size_t totRead;
 	char *buf;
 	char ch;
 
@@ -446,32 +507,31 @@ ssize_t readLine(int fd, void *buffer, int n) {
 		return -1;
 	}
 
-	buf = buffer; /* No pointer arithmetic on "void *" */
+	buf = buffer;
 
 	totRead = 0;
 	for (;;) {
 		numRead = read(fd, &ch, 1);
 
 		if (numRead == -1) {
-			if (errno == EINTR) /* Interrupted --> restart read() */
+			if (errno == EINTR)
 				continue;
 			else
-				return -1; /* Some other error */
+				return -1;
 
-		} else if (numRead == 0) { /* EOF */
-			if (totRead == 0) /* No bytes read; return 0 */
+		} else if (numRead == 0) {
+			if (totRead == 0)
 				return 0;
 			else
-				/* Some bytes read; add '\0' */
 				break;
 
-		} else { /* 'numRead' must be 1 if we get here */
+		} else {
 
 			if (ch == '\n') {
 				break;
 			}
 
-			if (totRead < n - 1) { /* Discard > (n - 1) bytes */
+			if (totRead < n - 1) {
 				totRead++;
 				*buf++ = ch;
 			}
@@ -482,47 +542,4 @@ ssize_t readLine(int fd, void *buffer, int n) {
 	return totRead;
 }
 
-int desconecta_jugador(struct MensajeNIPC * mensaje) {
 
-	int i, j;
-	struct Jugador jugadores_actualizados[MAXJUG];
-
-	printf("El jugador %s, se desconecto.\n", mensaje->jugadorOrigen.nombre);
-
-	// Actualizo el vector de jugadores eliminando al que se desconecta
-
-	// j va a ser el indice en el vector de jugadores actualizados
-	j = 0;
-
-	// recorro el vector de jugadores actual
-	for (i = 0; i < jugadorCount; i++) {
-
-		// Si el jugador no es el que se esta desconectando lo mantengo
-		if(jugadores[i].clientfd != mensaje->jugadorOrigen.clientfd) {
-
-			jugadores_actualizados[j] = jugadores[i];
-			j++;
-		}
-	}
-
-	// Reseteo los valores del vector jugadores
-	struct Jugador jugadorVacio;
-
-	for (i = 0; i < jugadorCount; i++) {
-		jugadores[i] = jugadorVacio;
-	}
-
-	// Decremento la cantidad de jugadores conectados
-	jugadorCount--;
-
-	// Copio los valores nuevos
-	for (i = 0; i < jugadorCount; ++i) {
-		jugadores[i] = jugadores_actualizados[i];
-	}
-
-	// Cierro el socket cliente
-	close(mensaje->jugadorOrigen.clientfd);
-
-	// Elimino el thread para el cliente (detached)
-	pthread_exit(NULL);
-}

@@ -11,7 +11,7 @@
 // Tipos de mensajes que pueden ser intercambiados entre el servidor y los clientes.
 typedef enum {
 		Registra_Nombre,
-		Juega,
+		Jugada,
 		Elige_Jugador,
 		Lista_Jugadores,
 		Jugador_Registrado,

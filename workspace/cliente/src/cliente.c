@@ -536,7 +536,7 @@ void * leerJugada(void * args) {
 
 		// Enviar jugada
 		struct MensajeNIPC mensajeJugada;
-		mensajeJugada.tipo = Juega;
+		mensajeJugada.tipo = Jugada;
 		mensajeJugada.jugadorOrigen = partida.jugadorOrigen;
 		mensajeJugada.jugadorDestino = partida.jugadorDestino;
 		mensajeJugada.payload_length = strlen(pos);
