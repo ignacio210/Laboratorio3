@@ -58,7 +58,7 @@ int cantidad_barcos;
 char * posiciones_barcos[100];
 
 int cantidad_barcos_hundidos;
-char * posiciones_barcos_hundidos[100];
+char posiciones_barcos_hundidos[100][10];
 
 pthread_t ids[2];
 
@@ -509,7 +509,8 @@ void * escucharServidor(void * args) {
 				printf("Hundido.\n");
 
 				// Guardo la posicion del barco undido e incremento la cantidad de undidos
-				posiciones_barcos_hundidos[cantidad_barcos_hundidos] = mensaje->payload;
+
+				strcpy(posiciones_barcos_hundidos[cantidad_barcos_hundidos], mensaje->payload);
 				cantidad_barcos_hundidos++;
 
 				int x, y;
@@ -517,9 +518,11 @@ void * escucharServidor(void * args) {
 				x = mensaje->payload[0] - VALUE;
 				y = mensaje->payload[1] - VALUE;
 
-				printf("%d %d.\n", x, y);
+				//printf("%d %d.\n", x, y);
 
-				//my_matrix[i][j]
+				my_matrix[x][y] = 'a';
+
+				print_maps();
 
 				if(cantidad_barcos_hundidos == cantidad_barcos) {
 					// Logica de fin de la partida
