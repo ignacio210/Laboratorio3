@@ -93,7 +93,9 @@ int main(int argc, char * argv[]) {
 
 	//char * posiciones[cantidad_barcos];
 
-	validarPosiciones(argv, posiciones_barcos);
+	if(validarPosiciones(argv, posiciones_barcos) == -1) {
+		return EXIT_FAILURE;
+	}
 
 	//posiciones_barcos = posiciones;
 
@@ -480,8 +482,6 @@ void * leerJugada(void * args) {
 			abort();
 		}
 	}
-
-	pthread_exit(NULL);
 }
 
 void * escucharServidor(void * args) {
@@ -527,8 +527,6 @@ void * escucharServidor(void * args) {
 			break;
 		}
 	}
-
-	pthread_exit(NULL);
 }
 
 int handler_ataque(struct MensajeNIPC * mensaje) {
@@ -722,15 +720,11 @@ int iniciarPartida(struct Partida partida) {
 		return EXIT_FAILURE;
 	}
 
-	/*while(partida.estado == EnProgreso) {
-		sleep(10);
-	}
-	sleep(10);*/
-
 	// bloqueo hasta que ambos threads terminen
 	pthread_join(t2, NULL);
 	pthread_join(t1, NULL);
 
+	// Termino la partida
 
 	return 0;
 }
