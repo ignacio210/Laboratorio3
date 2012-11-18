@@ -70,6 +70,9 @@ struct Jugador jugador;
 // Estructura que contiene los datos de la partida en curso
 struct Partida partida;
 
+// Flag que va a indicar si es turno del jugador o del rival
+int turno;
+
 // Lista de jugadores disponibles (se va actualizando)
 struct Jugador jugadoresDisponibles[MAXJUG];
 int jugadoresDisponiblesCont;
@@ -345,11 +348,15 @@ int mostrar_menu() {
 
 			printf("%s\n", messageBuffer);
 
+			// Eligio un jugador, por lo tanto sera el que inicia la partida
+			turno = 1;
+
 			if (elegirJugador() == -1) {
 				perror("Error al elegir jugador.\n");
 				liberar_recursos();
 				return -1;
 			}
+
 		}
 	} else {
 
@@ -392,6 +399,9 @@ int esperarPartida() {
 		partida.jugadorDestino = mensajeConfirmacion->jugadorOrigen;
 
 	partida.estado = EnProgreso;
+
+	// Como la partida la inicio el otro jugador, sera el que empieza
+	turno = 0;
 
 	iniciarPartida(partida);
 
@@ -484,10 +494,20 @@ void * leerJugada(void * args) {
 			printf("Las coordenadas ingresadas no son validas.\n");
 		}
 
-		printf("enter value\n");
+		if (turno) {
+			printf("Ingrese coordenadas:\n");
+		} else {
+			printf("Esperando jugada del oponente...\n");
+		}
+
 		gets(pos);
 
 		system("clear");
+
+		// Si no es el turno del jugador no hago nada aun
+		if (!turno) {
+			continue;
+		}
 
 		//Validacion coordenadas
 		if (strlen(pos) != 2) {
@@ -571,6 +591,9 @@ int handler_ataque(struct MensajeNIPC * mensaje) {
 	// Mensaje que voy a enviar informando el resultado
 	struct Resultado_Ataque resultado_ataq;
 
+	// Cambio el turno, si estaba en 0 a 1 y viceversa
+	turno = !turno;
+
 	// Se fija si las coordenadas del ataque coinciden con alguna posicion
 	for (i = 0; i < cantidad_barcos; i++) {
 
@@ -613,9 +636,6 @@ int handler_ataque(struct MensajeNIPC * mensaje) {
 
 		printf("Se recibio un ataque a coordenadas %s... Hundido.\n",
 				mensaje->payload);
-
-		printf("enter value\n");
-
 	} else {
 
 		// Seteo respuesta del mensaje
@@ -627,6 +647,13 @@ int handler_ataque(struct MensajeNIPC * mensaje) {
 
 		printf("Se recibio un ataque a coordenadas %s... Agua.\n",
 				mensaje->payload);
+
+	}
+
+	if (turno) {
+		printf("Ingrese coordenadas:\n");
+	} else {
+		printf("Esperando jugada del oponente...\n");
 	}
 
 	// Envio el mensaje con la respuesta de la jugada
@@ -700,6 +727,9 @@ int handler_respuesta(struct MensajeNIPC * mensaje) {
 
 	print_maps();
 
+	// Cambio el turno, si estaba en 0 a 1 y viceversa
+	turno = !turno;
+
 	if (resultado.resultado == Agua) {
 		printf("Resultado de ataque a coordenadas %s: Agua.\n",
 				resultado.coordenadas);
@@ -708,7 +738,11 @@ int handler_respuesta(struct MensajeNIPC * mensaje) {
 				resultado.coordenadas);
 	}
 
-	printf("enter value\n");
+	if (turno) {
+		printf("Ingrese coordenadas:\n");
+	} else {
+		printf("Esperando jugada del oponente...\n");
+	}
 
 	return 0;
 }
