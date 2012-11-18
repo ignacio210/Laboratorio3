@@ -62,7 +62,7 @@ char * posiciones_barcos[100];
 int cantidad_barcos_hundidos;
 char posiciones_barcos_hundidos[100][10];
 
-pthread_t ids[2];
+pthread_t t1, t2;
 
 // Estructura jugador registrada en el server
 struct Jugador jugador;
@@ -373,6 +373,8 @@ int esperarPartida() {
 	else
 		partida.jugadorDestino = mensajeConfirmacion->jugadorOrigen;
 
+	partida.estado = EnProgreso;
+
 	iniciarPartida(partida);
 
 	return 0;
@@ -438,7 +440,7 @@ void * leerJugada(void * args) {
 
 	int s, coords_invalidas = 0;
 
-	while (1) {
+	while (partida.estado == EnProgreso) {
 
 		print_maps();
 
@@ -479,6 +481,8 @@ void * leerJugada(void * args) {
 			abort();
 		}
 	}
+
+	pthread_exit(NULL);
 }
 
 void * escucharServidor(void * args) {
@@ -486,7 +490,7 @@ void * escucharServidor(void * args) {
 	int r;
 	char buffer[MAXBUF];
 
-	while (1) {
+	while (partida.estado == EnProgreso) {
 
 		bzero(buffer, MAXBUF);
 
@@ -519,10 +523,13 @@ void * escucharServidor(void * args) {
 
 		case Fin_partida:
 			handler_fin(mensaje);
+			partida.estado = Terminada;
+
 			break;
 		}
 	}
 
+	pthread_exit(NULL);
 }
 
 int handler_ataque(struct MensajeNIPC * mensaje) {
@@ -702,23 +709,29 @@ int iniciarPartida(struct Partida partida) {
 
 	// Voy a separar la ejecucion en 2 threads, uno va a leer lo que ingresa el usuario
 	// por consola y otro va a estar escuchando por mensajes que le lleguen desde el server
-	result = pthread_create(&ids[0], NULL, leerJugada, NULL );
+	result = pthread_create(&t1, NULL, leerJugada, NULL );
 
 	if (result != 0) {
 		perror("Error en la creacion del thread\n");
 		return EXIT_FAILURE;
 	}
 
-	result = pthread_create(&ids[1], NULL, escucharServidor, NULL );
+	result = pthread_create(&t2, NULL, escucharServidor, NULL );
 
 	if (result != 0) {
 		perror("Error en la creacion del thread\n");
 		return EXIT_FAILURE;
 	}
+
+	/*while(partida.estado == EnProgreso) {
+		sleep(10);
+	}
+	sleep(10);*/
 
 	// bloqueo hasta que ambos threads terminen
-	pthread_join(ids[0], NULL );
-	pthread_join(ids[1], NULL );
+	pthread_join(t2, NULL);
+	pthread_join(t1, NULL);
+
 
 	return 0;
 }
@@ -775,6 +788,7 @@ int elegirJugador() {
 
 	partida.jugadorOrigen = jugador;
 	partida.jugadorDestino = jugadoresDisponibles[jugadorElegido - 1];
+	partida.estado = EnProgreso;
 
 	iniciarPartida(partida);
 
