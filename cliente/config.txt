@@ -1,0 +1,4 @@
+# Direccion ip del servidor
+127.0.0.1
+# Puerto al cual conectarse
+9999
