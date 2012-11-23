@@ -158,7 +158,7 @@ int main(int argc, char * argv[]) {
 	printf("Se ha registrado en el servidor como el jugador %s.\n",
 			jugador.nombre);
 
-	if (mostrar_menu() == -1) {
+	if (mostrar_lista() == -1) {
 		return EXIT_FAILURE;
 	}
 
@@ -274,102 +274,77 @@ int validarPosiciones(char ** argv, char ** posiciones) {
 	return 0;
 }
 
-int mostrar_menu() {
+int mostrar_lista() {
 
 	int s, r;
 	char buffer[MAXBUF];
 
 	bzero(buffer, MAXBUF);
 
-	// Dar la opcion de elegir un jugador de la lista o esperar a que alguien lo elija
-	printf("Menu:\n\n");
+	// Pido la lista de jugadores
+	struct MensajeNIPC mensajeLista;
+	mensajeLista.tipo = Lista_Jugadores;
 
-	printf("\t1. Elegir un contrincante.\n");
-	printf("\t2. Esperar a ser elegido.\n\n");
+	s = send(sockfd, &mensajeLista, sizeof(struct MensajeNIPC), 0);
 
-	int opcion;
-
-	printf("Ingrese opcion: ");
-	scanf("%d", &opcion);
-
-	if (opcion < 1 || opcion > 2) {
-		printf("La opcion ingresada no es valida.\n");
+	if (s == -1) {
+		perror("Error al enviar el mensaje.\n");
 		return -1;
 	}
 
-	if (opcion == 1) {
+	// Recibo lista de jugadores
+	r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
 
-		// Pido la lista de jugadores
-		struct MensajeNIPC mensajeLista;
-		mensajeLista.tipo = Lista_Jugadores;
+	TIPO_MENSAJE tipo;
 
-		s = send(sockfd, &mensajeLista, sizeof(struct MensajeNIPC), 0);
+	memcpy(&tipo, buffer, sizeof(TIPO_MENSAJE));
 
-		if (s == -1) {
-			perror("Error al enviar el mensaje.\n");
-			return -1;
-		}
+	int payloadLength;
 
-		// Recibo lista de jugadores
-		r = recv(sockfd, buffer, sizeof(struct MensajeNIPC), 0);
+	memcpy(&payloadLength, buffer + sizeof(TIPO_MENSAJE), sizeof(int));
 
-		TIPO_MENSAJE tipo;
+	// Valido que la lista no este vacia, si esta vacia lo pongo a esperar
+	// Si la lista esta vacia el fd del primer jugador va a ser 0
+	if (payloadLength == 0) {
 
-		memcpy(&tipo, buffer, sizeof(TIPO_MENSAJE));
+		printf("No hay jugadores disponibles en este momento.\n");
+		esperarPartida();
 
-		int payloadLength;
-
-		memcpy(&payloadLength, buffer + sizeof(TIPO_MENSAJE), sizeof(int));
-
-		// Valido que la lista no este vacia, si esta vacia lo pongo a esperar
-		// Si la lista esta vacia el fd del primer jugador va a ser 0
-		if (payloadLength == 0) {
-
-			printf("No hay jugadores disponibles en este momento.\n");
-			esperarPartida();
-
-		} else {
-
-			int i = 0;
-
-			char messageBuffer[MAXBUF];
-
-			memcpy(jugadoresDisponibles,
-					buffer + sizeof(TIPO_MENSAJE) + sizeof(int), payloadLength);
-
-			strcat(messageBuffer, "Lista de jugadores disponibles:\n\n");
-
-			while (jugadoresDisponibles[i].clientfd != 0) {
-
-				char num[5];
-				sprintf(num, "%d", i + 1);
-				strcat(messageBuffer, num);
-				strcat(messageBuffer, ". ");
-				strcat(messageBuffer, jugadoresDisponibles[i].nombre);
-				strcat(messageBuffer, "(");
-				strcat(messageBuffer, jugadoresDisponibles[i].ip);
-				strcat(messageBuffer, ")\n");
-
-				i++;
-			}
-
-			jugadoresDisponiblesCont = i;
-
-			printf("%s\n", messageBuffer);
-
-			if (elegirJugador() == -1) {
-				perror("Error al elegir jugador.\n");
-				liberar_recursos();
-				return -1;
-			}
-
-		}
 	} else {
 
-		if (esperarPartida() == -1) {
-			printf("Error iniciando la partida.\n");
+		int i = 0;
+
+		char messageBuffer[MAXBUF];
+
+		memcpy(jugadoresDisponibles,
+				buffer + sizeof(TIPO_MENSAJE) + sizeof(int), payloadLength);
+
+		strcat(messageBuffer, "Lista de jugadores disponibles:\n\n");
+
+		while (jugadoresDisponibles[i].clientfd != 0) {
+
+			char num[5];
+			sprintf(num, "%d", i + 1);
+			strcat(messageBuffer, num);
+			strcat(messageBuffer, ". ");
+			strcat(messageBuffer, jugadoresDisponibles[i].nombre);
+			strcat(messageBuffer, "(");
+			strcat(messageBuffer, jugadoresDisponibles[i].ip);
+			strcat(messageBuffer, ")\n");
+
+			i++;
+		}
+
+		jugadoresDisponiblesCont = i;
+
+		printf("%s\n", messageBuffer);
+
+		if (elegirJugador() == -1) {
+			perror("Error al elegir jugador.\n");
+			liberar_recursos();
 			return -1;
 		}
+
 	}
 
 	return 0;
@@ -515,10 +490,9 @@ void * leerJugada(void * args) {
 		if (coords_invalidas) {
 
 			// Si es el inicio de la partida no muestro ningun mensaje
-			if(inicio) {
+			if (inicio) {
 				inicio = 0;
-			}
-			else {
+			} else {
 				printf("Las coordenadas ingresadas no son validas.\n");
 			}
 		}
